@@ -28,6 +28,7 @@ services:
     environment:
       - API_KEY=your_API_key
       - RECHECK_PREMIUMIZE_CLOUD_DELAY=120
+      - TZ=Europe/Berlin
     volumes:
       - /path/to/blackhole:/blackhole # The same as the blackhole folder you use in e.g. sonarr
       - /path/to/downloads:/downloads # Temporary download folder for the files while downloading
