@@ -22,7 +22,7 @@ docker run -e API_KEY=your_API_key \
 ```yaml
 services:
   premiumarr:
-    image: HoroTW/premiumarr:latest
+    image: horotw/premiumarr:latest
     container_name: premiumarr
     restart: unless-stopped
     environment:
