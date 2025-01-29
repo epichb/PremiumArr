@@ -55,8 +55,8 @@ class Manager:
                 self.dl.download(url=link, name=name)
 
             print(f"Downloaded all files from {item.name} ...")
-            print(f"Removing the transfer from premiumize cloud for {item.name} ...")
-            self.pm.delete_transfer(item.id)  # remove the transfer (and the folder) from premiumize cloud / downloader
+            print(f"Removing the transfer from premiumize cloud and downloader for {item.name} ...")
+            self.test_with_retry(lambda x: x["status"] == "success", self.pm.delete_item, item.id)
 
             # move the files to the done folder
             print(f"Moving files to done folder for {item.name} ...")
@@ -66,7 +66,7 @@ class Manager:
 
     def get_folder_as_download_links(self, f_id: str, path: str = "") -> list[tuple[str, str, str]]:
         ret = []
-        folder = self.pm.list_folder(f_id)
+        folder = self.test_with_retry(lambda x: x["status"] == "success", self.pm.list_folder, f_id)
         for item in folder.content:
             if item.is_folder():
                 ret.extend(self.get_folder_as_download_links(item.id, f"{path}/{item.name}"))
@@ -95,7 +95,11 @@ class Manager:
         while self.to_premiumize:
             nzb_path, category_path = self.to_premiumize[0]
             print(f"Uploading NZB file: {nzb_path} ...")
-            dl_id = self.pm.upload_nzb(nzb_path, self.premiumarr_root_id)
+
+            dl_id = self.test_with_retry(
+                lambda x: x["status"] == "success", self.pm.upload_nzb, nzb_path, self.premiumarr_root_id
+            )
+
             self.to_watch[dl_id] = [0, category_path]
             self.to_premiumize.pop(0)
             # TODO: Persist state to be persistent over crashes
@@ -146,8 +150,8 @@ class Manager:
             print(f"Item failed to download ({cur_retry_count}/6): retrying ... {item}")
 
             # TODO: persist state to be persistent over crashes
-            self.pm.retry_transfer(item.id)  # unknown errors are resolvable by retrying on premiumize downloader
-            #                         'message': 'An Unknown error occurred!', 'status': 'error', -> 3 retries, worked
+            self.test_with_retry(lambda x: x["status"] == "success", self.pm.retry_transfer, item.id)
+            # unknown errors are resolvable by retrying on premiumize downloader
 
         progressing = [i for i in filtered_to_watched if i.status != "finished" and i.status not in retry_cases]
         for item in progressing:
@@ -168,3 +172,4 @@ class Manager:
                 print(f"Exception: {e}")
                 sleep(1)
         raise RuntimeError(f"Failed to execute {func.__name__} with args {args} and kwargs {kwargs} after 6 tries")
+        # TODO: what to do if it fails 6 times?

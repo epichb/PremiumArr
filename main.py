@@ -1,4 +1,5 @@
 import os
+from time import sleep
 from src.manager import Manager
 
 BLACKHOLE_PATH = os.getenv("BLACKHOLE_PATH", "/blackhole")
@@ -25,5 +26,10 @@ if __name__ == "__main__":
     check_path(DL_PATH, "Download")
     check_path(DONE_PATH, "Done")
     paths = (BLACKHOLE_PATH, DL_PATH, DONE_PATH)
-
-    Manager(API_KEY, paths, DL_THREADS, DL_SPEED_LIMIT_KB, CHK_DELAY).run()
+    while True:  # prevent the script from crashing
+        try:
+            manager = Manager(API_KEY, paths, DL_THREADS, DL_SPEED_LIMIT_KB, CHK_DELAY)
+            manager.run()
+        except Exception as e:  # pylint: disable=broad-except # we intentionally catch all exceptions
+            print(f"Manager failed: {str(e)}")
+            sleep(120)
