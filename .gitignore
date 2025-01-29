@@ -1,0 +1,5 @@
+.vscode/launch.json
+.venv/
+__pycache__/
+mounts/
+docker-compose.yml
