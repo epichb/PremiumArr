@@ -136,7 +136,7 @@ class PremiumizeAPI:
         if url.startswith("/"):
             url = BASE_URL + url
 
-        response = requests.get(url, params=params, timeout=30)
+        response = requests.get(url, params=params, timeout=90)
         if response.status_code != 200:
             raise RuntimeError(f"Request failed with status code {response.status_code}, {response.text}")
         return response.json()
@@ -147,7 +147,7 @@ class PremiumizeAPI:
 
         data["apikey"] = self.api_key
 
-        response = requests.post(url, data=data, timeout=30, files=files)
+        response = requests.post(url, data=data, timeout=90, files=files)
         if response.status_code != 200:
             raise RuntimeError(f"Request failed with status code {response.status_code}, {response.text}")
         return response.json()

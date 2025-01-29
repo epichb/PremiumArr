@@ -1,5 +1,6 @@
 import os
-from time import sleep, time
+import shutil
+from time import sleep
 from src.downloader import Downloader
 from src.premiumize_api import PremiumizeAPI, TransferListResponse
 
@@ -53,17 +54,15 @@ class Manager:
                 print(f"Downloading: '{self.dl_path}/{path}/{name}' from {link[:40]}...")
                 self.dl.download(url=link, name=name)
 
+            print(f"Downloaded all files from {item.name} ...")
+            print(f"Removing the transfer from premiumize cloud for {item.name} ...")
             self.pm.delete_transfer(item.id)  # remove the transfer (and the folder) from premiumize cloud / downloader
 
             # move the files to the done folder
-            os.makedirs(f"{self.dl_path}/done/{category}", exist_ok=True)
-
-            if os.path.exists(f"{self.dl_path}/done/{category}/{item.name}"):
-                os.rename(
-                    f"{self.dl_path}/done/{category}/{item.name}",
-                    f"{self.dl_path}/done/{category}/{item.name}.bak({int(time())})",
-                )
-            os.rename(f"{self.dl_path}/{item.name}", f"{self.dl_path}/done/{category}/{item.name}")
+            print(f"Moving files to done folder for {item.name} ...")
+            os.makedirs(f"{self.done_path}/{category}", exist_ok=True)
+            shutil.move(f"{self.dl_path}/{item.name}", f"{self.done_path}/{category}/{item.name}")
+            print(f"COMPLETED {item.name}")
 
     def get_folder_as_download_links(self, f_id: str, path: str = "") -> list[tuple[str, str, str]]:
         ret = []
@@ -97,7 +96,7 @@ class Manager:
             nzb_path, category_path = self.to_premiumize[0]
             print(f"Uploading NZB file: {nzb_path} ...")
             dl_id = self.pm.upload_nzb(nzb_path, self.premiumarr_root_id)
-            self.to_watch[dl_id] = (0, category_path)
+            self.to_watch[dl_id] = [0, category_path]
             self.to_premiumize.pop(0)
             # TODO: Persist state to be persistent over crashes
 
@@ -140,14 +139,15 @@ class Manager:
         for item in filtered_to_failed:
             self.to_watch[item.id][0] += 1  # from_watch[0] == retry_count
             cur_retry_count = self.to_watch[item.id][0]
-            if cur_retry_count >= 3:
+            if cur_retry_count >= 6:
                 # TODO: notify sonarr that the download failed
                 print(f"Item failed to download: {item}, notifying sonarr ...")
 
-            print(f"Item failed to download ({cur_retry_count}/3): retrying ... {item}")
+            print(f"Item failed to download ({cur_retry_count}/6): retrying ... {item}")
 
             # TODO: persist state to be persistent over crashes
-            self.pm.retry_transfer(item.id)
+            self.pm.retry_transfer(item.id)  # unknown errors are resolvable by retrying on premiumize downloader
+            #                         'message': 'An Unknown error occurred!', 'status': 'error', -> 3 retries, worked
 
         progressing = [i for i in filtered_to_watched if i.status != "finished" and i.status not in retry_cases]
         for item in progressing:
@@ -155,7 +155,7 @@ class Manager:
         # TODO: remove mutex
 
     def test_with_retry(self, success_tester: callable, func: callable, *args, **kwargs):
-        for i in range(3):
+        for i in range(6):
             print(f"Trying to execute {func.__name__} ... (try {i+1}/3)")
             try:
                 result: TransferListResponse = func(*args, **kwargs)
@@ -167,4 +167,4 @@ class Manager:
                 print(f"Failed to execute {func.__name__} with args {args} and kwargs {kwargs}, retrying ...")
                 print(f"Exception: {e}")
                 sleep(1)
-        raise RuntimeError(f"Failed to execute {func.__name__} with args {args} and kwargs {kwargs} after 3 tries")
+        raise RuntimeError(f"Failed to execute {func.__name__} with args {args} and kwargs {kwargs} after 6 tries")
