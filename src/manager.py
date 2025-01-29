@@ -56,7 +56,7 @@ class Manager:
 
             print(f"Downloaded all files from {item.name} ...")
             print(f"Removing the transfer from premiumize cloud and downloader for {item.name} ...")
-            self.test_with_retry(lambda x: x["status"] == "success", self.pm.delete_item, item.id)
+            self.test_with_retry(lambda x: x["status"] == "success", self.pm.delete_transfer, item.id)
 
             # move the files to the done folder
             print(f"Moving files to done folder for {item.name} ...")
@@ -66,7 +66,7 @@ class Manager:
 
     def get_folder_as_download_links(self, f_id: str, path: str = "") -> list[tuple[str, str, str]]:
         ret = []
-        folder = self.test_with_retry(lambda x: x["status"] == "success", self.pm.list_folder, f_id)
+        folder = self.test_with_retry(lambda x: x.status == "success", self.pm.list_folder, f_id)
         for item in folder.content:
             if item.is_folder():
                 ret.extend(self.get_folder_as_download_links(item.id, f"{path}/{item.name}"))
@@ -97,7 +97,7 @@ class Manager:
             print(f"Uploading NZB file: {nzb_path} ...")
 
             dl_id = self.test_with_retry(
-                lambda x: x["status"] == "success", self.pm.upload_nzb, nzb_path, self.premiumarr_root_id
+                lambda x: len(x) > 0 and isinstance(x, str), self.pm.upload_nzb, nzb_path, self.premiumarr_root_id
             )
 
             self.to_watch[dl_id] = [0, category_path]
@@ -116,7 +116,7 @@ class Manager:
         if len(self.to_watch) == 0:  # nothing to watch, so don't bother the API
             return
 
-        transfers = self.test_with_retry(success_test, self.pm.get_transfers)
+        transfers = self.test_with_retry(success_test, self.pm.get_transfers).transfers
 
         # TODO: REMOVE this DEBUG print
         # for item in transfers:
@@ -158,18 +158,18 @@ class Manager:
             print(f"{item.name}: {item.message}")
         # TODO: remove mutex
 
-    def test_with_retry(self, success_tester: callable, func: callable, *args, **kwargs):
-        for i in range(6):
-            print(f"Trying to execute {func.__name__} ... (try {i+1}/3)")
+    def test_with_retry(self, success_tester: callable, func: callable, *args, n_retries: int = 6, **kwargs):
+        for i in range(n_retries):
+            print(f"Trying to execute {func.__name__} with args {args} and kwargs {kwargs} ... (try {i+1}/{n_retries})")
             try:
-                result: TransferListResponse = func(*args, **kwargs)
+                result = func(*args, **kwargs)
                 if success_tester(result):
-                    return result.transfers
-                print("Test for success failed, retrying  ...")
+                    return result
+                print("Test for success failed, retrying ...")
 
             except Exception as e:  # pylint: disable=broad-except # we intentionally catch all exceptions
                 print(f"Failed to execute {func.__name__} with args {args} and kwargs {kwargs}, retrying ...")
                 print(f"Exception: {e}")
-                sleep(1)
+            sleep(5 * i)
         raise RuntimeError(f"Failed to execute {func.__name__} with args {args} and kwargs {kwargs} after 6 tries")
         # TODO: what to do if it fails 6 times?
