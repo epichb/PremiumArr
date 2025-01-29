@@ -1,5 +1,13 @@
 # PremiumArr
 
+Currently it supports basically all of the Sonarr, Radarr and Lidarr, ... but only in form of a blackhole folder.
+In the future I will add support for the API of Sonarr, Radarr, Lidarr, ... so it can mark downloads as failed (-> next release).
+
+Also not yet included is any from of persistence of the state, so if the container is restarted, it will forget all downloads that are currently in progress.
+
+It's still under heavy development, so expect bugs and missing features.
+
+
 ## Docker Image
 
 The Docker Image is available on Docker Hub: [premiumarr](https://hub.docker.com/r/horotw/premiumarr)
