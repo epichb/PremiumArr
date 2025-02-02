@@ -1,5 +1,7 @@
 import os
 from pySmartDL import SmartDL
+from tenacity import retry, stop_after_attempt, wait_exponential
+from main import on_fail
 
 
 class Downloader:
@@ -10,6 +12,7 @@ class Downloader:
         self.threads = threads
         self.speed_limit_kb = speed_limit_kb
 
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(2, min=30, max=90), retry_error_callback=on_fail)
     def download(self, url: str, name: str) -> None:
         if os.path.exists(f"{self.dest}/{name}"):
             print(f"File already downloaded -> skipping ({self.dest}{name})")
