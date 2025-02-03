@@ -83,17 +83,19 @@ class Manager:
     @retry(stop=stop_after_attempt(5), wait=wait_exponential(2, min=1, max=30), retry_error_callback=on_fail)
     def move_to_done(self):
         q = "SELECT id, nzb_name, category_path, full_path FROM data WHERE state = 'downloaded and online cleaned up'"
-        d_id, d_name, category, nzb_full_path = self.db.cursor.execute(q).fetchone()
-        category = category[1:] if category.startswith("/") else category  # normalize category path
+        items = self.db.cursor.execute(q).fetchall()
+        for item in items:
+            d_id, d_name, category, nzb_full_path = item
+            category = category[1:] if category.startswith("/") else category  # normalize category path
 
-        print(f"Moving files to done folder for {d_name} ...")
-        os.makedirs(f"{self.done_path}/{category}", exist_ok=True)
-        shutil.move(f"{self.dl_path}/{d_name}", f"{self.done_path}/{category}/{d_name}")
-        shutil.move(nzb_full_path, f"{self.config_path}/archive/{d_name}")  # move the nzb to archive
+            print(f"Moving files to done folder for {d_name} ...")
+            os.makedirs(f"{self.done_path}/{category}", exist_ok=True)
+            shutil.move(f"{self.dl_path}/{d_name}", f"{self.done_path}/{category}/{d_name}")
+            shutil.move(nzb_full_path, f"{self.config_path}/archive/{d_name}")  # move the nzb to archive
 
-        self.db.cursor.execute("UPDATE data SET state = 'done' WHERE id = ?", (d_id,))
-        self.db.conn.commit()
-        print(f"COMPLETED {d_name}")
+            self.db.cursor.execute("UPDATE data SET state = 'done' WHERE id = ?", (d_id,))
+            self.db.conn.commit()
+            print(f"COMPLETED {d_name}")
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(2, min=5, max=45), retry_error_callback=on_fail)
     def cleanup_online_files(self):
