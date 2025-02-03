@@ -18,14 +18,14 @@ class Database:
         self.cursor.execute("""
         CREATE TABLE IF NOT EXISTS data (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nzb_name TEXT NOT NULL,
             state TEXT NOT NULL,
-            full_path TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             category_path TEXT NOT NULL,
             dl_id INTEGER,
             dl_retry_count INTEGER DEFAULT 0,
             dl_folder_id TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            nzb_name TEXT NOT NULL,
+            full_path TEXT NOT NULL
         )
         """)  # fmt: on
 
