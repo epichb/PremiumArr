@@ -2,7 +2,7 @@ import os
 import random
 import requests
 from tenacity import retry, stop_after_attempt, wait_exponential, RetryError  # retry_if_exception_type,
-from main import on_fail
+from src.helper import on_fail
 
 BASE_URL = "https://www.premiumize.me/api"  # https://app.swaggerhub.com/apis-docs/premiumize.me/api
 # IMPROVEMENT IDEA: Add a check for "Network error" and busy wait till the network is back up
@@ -165,7 +165,7 @@ class PremiumizeAPI:
         return response.json()
 
     def _post(self, url: str, data: dict, files: dict = None):
-        url = url + BASE_URL if url.startswith("/") else url
+        url = BASE_URL + url if url.startswith("/") else url
         data["apikey"] = self.api_key
 
         response = requests.post(url, data=data, timeout=90, files=files)
@@ -175,12 +175,9 @@ class PremiumizeAPI:
 
     @retry(stop=stop_after_attempt(5), wait=wait_exponential(min=1, max=60), retry_error_callback=on_fail)
     def ensure_directory_exists(self, directory: str) -> None:
-        create_folder_response = self.create_folder(directory)
-        if (
-            create_folder_response["status"] != "success"
-            and create_folder_response["message"] != "This folder already exists."
-        ):
-            raise RuntimeError(f"Could not ensure directory exists: {create_folder_response}")
+        resp = self.create_folder(directory)
+        if resp["status"] != "success" and resp["message"] != "This folder already exists.":
+            raise RuntimeError(f"Could not ensure directory exists: {resp}")
 
         # find the folder id
         root_folder = self.list_root_folder()

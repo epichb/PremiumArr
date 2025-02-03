@@ -2,18 +2,16 @@ import os
 from time import sleep
 from src.manager import Manager
 
+
 BLACKHOLE_PATH = os.getenv("BLACKHOLE_PATH", "/blackhole")
 DL_PATH = os.getenv("DOWNLOAD_PATH", "/downloads")
 DONE_PATH = os.getenv("DONE_PATH", "/done")
+CONFIG_PATH = os.getenv("CONFIG_PATH", "/config")
 DL_SPEED_LIMIT_KB = int(os.getenv("DOWNLOAD_SPEED_LIMIT_KB", "-1"))
 DL_THREADS = int(os.getenv("DOWNLOAD_THREADS", "2"))
 CHK_DELAY = int(os.getenv("RECHECK_PREMIUMIZE_CLOUD_DELAY", "60"))
 API_KEY = os.getenv("API_KEY")
-RESTART_AFTER_FATAL_TIME = int(os.getenv("RESTART_AFTER_FATAL_TIME", "60"))
 
-def on_fail(retry_state):
-    print(f"Retries exhausted for {retry_state.args}. Fallback action triggered.")
-    # Add your recovery logic here
 
 def check_path(dir_path, dir_name):
     print(f"Checking {dir_name} directory: {dir_path}")
@@ -27,11 +25,16 @@ if __name__ == "__main__":
     if not API_KEY:
         raise RuntimeError("Please set the API_KEY environment variable")
 
-    paths = {BLACKHOLE_PATH: "Blackhole", DL_PATH: "Download", DONE_PATH: "Done"}
+    paths = {BLACKHOLE_PATH: "Blackhole", DL_PATH: "Download", DONE_PATH: "Done", CONFIG_PATH: "Config"}
+    # sleep(120)
     for path, name in paths.items():
         check_path(path, name)
 
-    manager = Manager(API_KEY, paths.keys(), DL_THREADS, DL_SPEED_LIMIT_KB, CHK_DELAY)
+    # ensure the archive folder is in config path
+    os.makedirs(f"{CONFIG_PATH}/archive", exist_ok=True)
+
+    manager = Manager(API_KEY, list(paths.keys()), DL_THREADS, DL_SPEED_LIMIT_KB, CHK_DELAY)
+    RESTART_AFTER_FATAL_TIME = 60
     while True:  # prevent the script from crashing
         try:
             manager.run()

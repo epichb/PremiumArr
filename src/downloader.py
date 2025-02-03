@@ -1,7 +1,7 @@
 import os
 from pySmartDL import SmartDL
 from tenacity import retry, stop_after_attempt, wait_exponential
-from main import on_fail
+from src.helper import on_fail
 
 
 class Downloader:

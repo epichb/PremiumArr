@@ -1,17 +1,24 @@
 {
     "cSpell.words": [
         "apikey",
+        "appgroup",
+        "appuser",
         "blackhole",
         "BLACKHOLE",
         "buildx",
         "clearfinished",
         "directlink",
         "horotw",
+        "Lidarr",
         "nzbs",
+        "PGID",
         "premiumarr",
         "premiumize",
         "Premiumize",
+        "procps",
+        "PUID",
         "pycache",
+        "Radarr",
         "sonarr"
     ]
 }

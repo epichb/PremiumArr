@@ -47,15 +47,17 @@ services:
 
 ## Environment Variables
 
-| Name                           | Description                                          | Default Value | Required |
-| ------------------------------ | ---------------------------------------------------- | ------------- | -------- |
-| API_KEY                        | The API key for the Premiumize.me API                |               | Yes      |
-| BLACKHOLE_PATH                 | The path to the blackhole folder                     | /blackhole    | No       |
-| DOWNLOAD_PATH                  | The path to the downloads folder                     | /downloads    | No       |
-| DONE_PATH                      | The path to the done folder                          | /done         | No       |
-| RECHECK_PREMIUMIZE_CLOUD_DELAY | The delay in seconds to recheck the Premiumize Cloud | 60            | No       |
-| DL_SPEED_LIMIT_KB              | The download speed limit in KB/s                     | -1            | No       |
-| DL_THREADS                     | The number of download threads                       | 2             | No       |
+| Name                           | Description                                            | Default Value | Required |
+| ------------------------------ | ------------------------------------------------------ | ------------- | -------- |
+| API_KEY                        | The API key for the Premiumize.me API                  |               | Yes      |
+| BLACKHOLE_PATH                 | The path to the blackhole folder                       | /blackhole    | No       |
+| CONFIG_PATH                    | The path to the config folder                          | /config       | No       |
+| DOWNLOAD_PATH                  | The path to the downloads folder                       | /downloads    | No       |
+| DONE_PATH                      | The path to the done folder                            | /done         | No       |
+| RECHECK_PREMIUMIZE_CLOUD_DELAY | The delay in seconds to recheck the Premiumize Cloud   | 60            | No       |
+| DL_SPEED_LIMIT_KB              | The download speed limit in KB/s                       | -1            | No       |
+| DL_THREADS                     | The number of download threads                         | 2             | No       |
+| PREMIUMIZE_CLOUD_ROOT_DIR_NAME | The name of the root directory in the Premiumize Cloud | premiumarr    | No       |
 
 
 
