@@ -3,7 +3,7 @@
 Currently it supports basically all of the Sonarr, Radarr and Lidarr, ... but only in form of a blackhole folder.
 In the future I will add support for the API of Sonarr, Radarr, Lidarr, ... so it can mark downloads as failed (-> next release).
 
-Also not yet included is any from of persistence of the state, so if the container is restarted, it will forget all downloads that are currently in progress.
+The state is preserved in a SQLite DB - so even if the container is restarted / crashed / updated the state is preserved.
 
 It's still under heavy development, so expect bugs and missing features.
 
@@ -74,3 +74,13 @@ docker build -t premiumarr .
 ## Contributing
 
 Feel free to submit issues or pull requests for improvements or bug fixes.
+
+## Improvements to come
+- [ ] Monitor how long a DL is 'moving to cloud' and retry if it takes too long (more than 10min?)
+- [ ] Add support for Sonarr, Radarr, Lidarr, ... API to mark downloads as failed
+  - [ ] Maybe fake the NZBGet API to be easy integrated in Sonarr, Radarr, Lidarr, ...
+- [ ] Maybe add a WebUI to see the status
+- [ ] Remove Lists and use solely the DB (where it fits)
+- [ ] Think about a state machine for the Downloads so the next step per download is clear
+- [ ] Add a way to pause downloads
+- [ ] Add a Sheduler to download files at a specific time
