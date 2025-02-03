@@ -71,6 +71,12 @@ class Manager:
             print("Checking if there are files to download to local ...")
             self.download_files_from_premiumize()  # done persistently
 
+            print("Cleaning up online files ...")
+            self.cleanup_online_files()  # done persistently
+
+            print("Moving files to done folder ...")
+            self.move_to_done()  # done persistently
+
             print(f"Sleeping for {self.chk_delay}s ...\n")
             sleep(self.chk_delay)
 
@@ -78,6 +84,7 @@ class Manager:
     def move_to_done(self):
         q = "SELECT id, nzb_name, category_path, full_path FROM data WHERE state = 'downloaded and online cleaned up'"
         d_id, d_name, category, nzb_full_path = self.db.cursor.execute(q).fetchone()
+        category = category[1:] if category.startswith("/") else category  # normalize category path
 
         print(f"Moving files to done folder for {d_name} ...")
         os.makedirs(f"{self.done_path}/{category}", exist_ok=True)
@@ -90,11 +97,13 @@ class Manager:
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(2, min=5, max=45), retry_error_callback=on_fail)
     def cleanup_online_files(self):
-        d_id, d_name = self.db.cursor.execute("SELECT id, nzb_name FROM data WHERE state = 'downloaded'").fetchone()
-        print(f"Removing files from premiumize cloud for {d_name} ...")
-        self.pm.delete_transfer(d_id)
-        self.db.cursor.execute("UPDATE data SET state = 'downloaded and online cleaned up' WHERE id = ?", (d_id,))
-        self.db.conn.commit()
+        q = "SELECT id, dl_id, nzb_name FROM data WHERE state = 'downloaded'"
+        for item in self.db.cursor.execute(q).fetchall():
+            d_id, dl_id, d_name = item
+            print(f"Removing files from premiumize cloud for {d_name} ...")
+            self.pm.delete_transfer(dl_id)
+            self.db.cursor.execute("UPDATE data SET state = 'downloaded and online cleaned up' WHERE id = ?", (d_id,))
+            self.db.conn.commit()
 
     # TODO: think about mutex and persistence
     @retry(stop=stop_after_attempt(5), wait=wait_exponential(2, min=5, max=45), retry_error_callback=on_fail)
@@ -136,7 +145,9 @@ class Manager:
             for file in files:
                 already_tracked = self.db.cursor.execute("SELECT * FROM data WHERE nzb_name = ?", (file,)).fetchone()
 
-                if file.endswith(".nzb") and not already_tracked:
+                if already_tracked:
+                    continue
+                if file.endswith(".nzb"):
                     category_path = root[len(self.blackhole_path) :]
                     print(f'Found new NZB file: "{file}" in subfolder: "{category_path}"')
 
@@ -205,6 +216,7 @@ class Manager:
             self.to_watch[item.id][0] += 1  # increase retry_count
             q = "UPDATE data SET dl_retry_count = dl_retry_count + 1 WHERE dl_id = ?"
             self.db.cursor.execute(q, (item.id,))
+
             self.db.conn.commit()
 
             cur_retry_count = self.to_watch[item.id][0]
