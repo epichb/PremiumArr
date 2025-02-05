@@ -29,3 +29,4 @@ class RetryHandler:
             f"  in {retry_state.fn.__name__} with {retry_state.args}\n"
             f"  RETRIES EXHAUSTED, NOT RETRYING"
         )
+        raise retry_state.outcome.exception()

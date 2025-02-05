@@ -54,7 +54,7 @@ class Manager:
             dl_id, category_path, dl_retry_count = item
             self.to_watch[dl_id] = [dl_retry_count, category_path]
 
-        to_download = "SELECT id, nzb_name, dl_folder_id, full_path FROM data WHERE state = 'in premiumize cloud'"
+        to_download = "SELECT id, nzb_name, dl_folder_id, category_path FROM data WHERE state = 'in premiumize cloud'"
         for item in self.db.cursor.execute(to_download).fetchall():
             self.to_download.append(((item[0], item[1], item[2]), item[3]))
 
@@ -100,12 +100,8 @@ class Manager:
             shutil.move(f"{self.dl_path}/{d_name}", f"{self.done_path}/{category}/{d_name}")
             shutil.move(nzb_full_path, f"{self.config_path}/archive/{d_name}")  # move the nzb to archive
 
-            # self.db.cursor.execute("UPDATE data SET state = 'done' WHERE id = ?", (d_id,))
-            # self.db.conn.commit()
-
-            self.db.cursor.execute("DELETE FROM data WHERE id = ?", (d_id,))
+            self.db.cursor.execute("UPDATE data SET state = 'done' WHERE id = ?", (d_id,))
             self.db.conn.commit()
-            
             logger.info(f"COMPLETED {d_name}")
 
     @retry(stop=tries(3), wait=w_exp(2, min=5, max=45), retry_error_callback=rh.on_fail, before_sleep=rh.on_retry)
@@ -118,7 +114,6 @@ class Manager:
             self.db.cursor.execute("UPDATE data SET state = 'downloaded and online cleaned up' WHERE id = ?", (d_id,))
             self.db.conn.commit()
 
-    # TODO: think about mutex and persistence
     @retry(stop=tries(5), wait=w_exp(2, min=5, max=45), retry_error_callback=rh.on_fail, before_sleep=rh.on_retry)
     def download_files_from_premiumize(self):
         while self.to_download:
