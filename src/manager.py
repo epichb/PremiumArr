@@ -1,13 +1,14 @@
 import os
 import shutil
 from time import sleep
-from tenacity import retry, stop_after_attempt, wait_exponential
+from tenacity import retry, stop_after_attempt as tries, wait_exponential as w_exp
 from src.downloader import Downloader
 from src.premiumize_api import PremiumizeAPI
-from src.helper import on_fail, get_logger
+from src.helper import RetryHandler, get_logger
 from src.db import Database
 
 logger = get_logger(__name__)
+rh = RetryHandler(logger)
 
 
 class Manager:
@@ -27,13 +28,13 @@ class Manager:
         assert self.premiumarr_root_id, "Failed to get root folder ID"
         logger.info("Manager finished init")
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=10), retry_error_callback=on_fail)
+    @retry(stop=tries(3), wait=w_exp(max=10), retry_error_callback=rh.on_fail, before_sleep=rh.on_retry)
     def test_basic_api_connection(self):
         info = self.pm.get_account_info()
         logger.info(f"Premiumize account info: {info}")
         assert info["status"] == "success", f"Failed to get account info, check your API key! (ERR: {info})"
 
-    @retry(stop=stop_after_attempt(1), wait=wait_exponential(min=1, max=10), retry_error_callback=on_fail)
+    @retry(stop=tries(1), wait=w_exp(max=10), retry_error_callback=rh.on_fail, before_sleep=rh.on_retry)
     def restore_state(self):
         logger.info("Restoring state ...")
 
@@ -56,7 +57,7 @@ class Manager:
 
         logger.info("Restored state!")
 
-    @retry(stop=stop_after_attempt(6), wait=wait_exponential(min=5, max=120), retry_error_callback=on_fail)
+    @retry(stop=tries(6), wait=w_exp(min=5, max=120), retry_error_callback=rh.on_fail, before_sleep=rh.on_retry)
     def run(self):
         self.restore_state()
 
@@ -82,7 +83,7 @@ class Manager:
             logger.info(f"Sleeping for {self.chk_delay}s ...\n")
             sleep(self.chk_delay)
 
-    @retry(stop=stop_after_attempt(5), wait=wait_exponential(2, min=1, max=30), retry_error_callback=on_fail)
+    @retry(stop=tries(5), wait=w_exp(2, max=30), retry_error_callback=rh.on_fail, before_sleep=rh.on_retry)
     def move_to_done(self):
         q = "SELECT id, nzb_name, category_path, full_path FROM data WHERE state = 'downloaded and online cleaned up'"
         items = self.db.cursor.execute(q).fetchall()
@@ -99,7 +100,7 @@ class Manager:
             self.db.conn.commit()
             logger.info(f"COMPLETED {d_name}")
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(2, min=5, max=45), retry_error_callback=on_fail)
+    @retry(stop=tries(3), wait=w_exp(2, min=5, max=45), retry_error_callback=rh.on_fail, before_sleep=rh.on_retry)
     def cleanup_online_files(self):
         q = "SELECT id, dl_id, nzb_name FROM data WHERE state = 'downloaded'"
         for item in self.db.cursor.execute(q).fetchall():
@@ -110,7 +111,7 @@ class Manager:
             self.db.conn.commit()
 
     # TODO: think about mutex and persistence
-    @retry(stop=stop_after_attempt(5), wait=wait_exponential(2, min=5, max=45), retry_error_callback=on_fail)
+    @retry(stop=tries(5), wait=w_exp(2, min=5, max=45), retry_error_callback=rh.on_fail, before_sleep=rh.on_retry)
     def download_files_from_premiumize(self):
         while self.to_download:
             (d_id, d_name, d_folder_id), category = self.to_download[0]
@@ -129,7 +130,7 @@ class Manager:
             self.db.conn.commit()
             self.to_download.pop(0)
 
-    @retry(stop=stop_after_attempt(5), wait=wait_exponential(2, min=5, max=45), retry_error_callback=on_fail)
+    @retry(stop=tries(5), wait=w_exp(2, min=5, max=45), retry_error_callback=rh.on_fail, before_sleep=rh.on_retry)
     def get_folder_as_download_links(self, f_id: str, path: str = "") -> list[tuple[str, str, str]]:
         ret = []
         folder = self.pm.list_folder(f_id)
@@ -143,7 +144,7 @@ class Manager:
 
     # IDEA: maybe I can to check_folder_for_incoming_nzbs and upload_nzbs_to_premiumize_downloader in a single thread
     # that way I would not need to use a mutex to prevent others from modifying the list
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=10), retry_error_callback=on_fail)
+    @retry(stop=tries(3), wait=w_exp(max=10), retry_error_callback=rh.on_fail, before_sleep=rh.on_retry)
     def check_folder_for_incoming_nzbs(self):
         for root, _, files in os.walk(self.blackhole_path):
             for file in files:
@@ -165,7 +166,7 @@ class Manager:
                 else:
                     logger.info(f"Found non-NZB file: {file} - ignoring")
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=2, max=30), retry_error_callback=on_fail)
+    @retry(stop=tries(3), wait=w_exp(min=2, max=30), retry_error_callback=rh.on_fail, before_sleep=rh.on_retry)
     def upload_nzbs_to_premiumize_downloader(self):
         while self.to_premiumize:
             nzb_path, category_path = self.to_premiumize[0]
@@ -181,7 +182,7 @@ class Manager:
             self.to_premiumize.pop(0)
             logger.info(f"Uploaded NZB file: {nzb_path}")
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=2, max=30), retry_error_callback=on_fail)
+    @retry(stop=tries(3), wait=w_exp(min=2, max=30), retry_error_callback=rh.on_fail, before_sleep=rh.on_retry)
     def check_premiumize_downloader_state(self):
         if len(self.to_watch) == 0:  # nothing to watch, so don't bother the API
             return

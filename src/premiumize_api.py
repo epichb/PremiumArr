@@ -1,10 +1,11 @@
 import os
 import random
 import requests
-from tenacity import retry, stop_after_attempt, wait_exponential, RetryError  # retry_if_exception_type,
-from src.helper import on_fail, get_logger
+from tenacity import retry, stop_after_attempt as tries, wait_exponential as w_exp, RetryError
+from src.helper import RetryHandler, get_logger
 
 logger = get_logger(__name__)
+rh = RetryHandler(logger)
 
 BASE_URL = "https://www.premiumize.me/api"  # https://app.swaggerhub.com/apis-docs/premiumize.me/api
 # IMPROVEMENT IDEA: Add a check for "Network error" and busy wait till the network is back up
@@ -91,11 +92,11 @@ class PremiumizeAPI:
     def __init__(self, api_key: str):
         self.api_key = api_key
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(2, min=1, max=20), retry_error_callback=on_fail)
+    @retry(stop=tries(3), wait=w_exp(2, max=20), retry_error_callback=rh.on_fail, before_sleep=rh.on_retry)
     def get_account_info(self):
         return self._get("/account/info")
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(2, min=1, max=20), retry_error_callback=on_fail)
+    @retry(stop=tries(3), wait=w_exp(2, max=20), retry_error_callback=rh.on_fail, before_sleep=rh.on_retry)
     def get_transfers(self) -> list[TransItem]:
         resp = TransferListResponse(self._get("/transfer/list"))
         if resp.status != "success":
@@ -103,35 +104,35 @@ class PremiumizeAPI:
         assert isinstance(resp, TransferListResponse), f"Expected type transfer_list_response, got {type(resp)}"
         return resp.transfers
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(2, min=1, max=20), retry_error_callback=on_fail)
+    @retry(stop=tries(3), wait=w_exp(2, max=20), retry_error_callback=rh.on_fail, before_sleep=rh.on_retry)
     def create_folder(self, name: str, parent_id: str = None):
         data = {"name": name}
         if parent_id:
             data["parent_id"] = parent_id
         return self._post("/folder/create", data=data)
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(2, min=1, max=20), retry_error_callback=on_fail)
+    @retry(stop=tries(3), wait=w_exp(2, max=20), retry_error_callback=rh.on_fail, before_sleep=rh.on_retry)
     def list_folder(self, folder_id: str) -> FolderListResponse:
         f_list = FolderListResponse(self._get(f"/folder/list?id={folder_id}"))
         if f_list.status != "success":
             raise RetryError(f"Failed to list folder: {f_list}")
         return f_list
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(2, min=1, max=20), retry_error_callback=on_fail)
+    @retry(stop=tries(3), wait=w_exp(2, max=20), retry_error_callback=rh.on_fail, before_sleep=rh.on_retry)
     def list_root_folder(self):
         return FolderListResponse(self._get("/folder/list"))
 
     # unused
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(2, min=1, max=20), retry_error_callback=on_fail)
+    @retry(stop=tries(3), wait=w_exp(2, max=20), retry_error_callback=rh.on_fail, before_sleep=rh.on_retry)
     def delete_folder(self, f_id: str):
         return self._post("/folder/delete", data={"id": f_id})
 
     # unused
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(2, min=1, max=20), retry_error_callback=on_fail)
+    @retry(stop=tries(3), wait=w_exp(2, max=20), retry_error_callback=rh.on_fail, before_sleep=rh.on_retry)
     def delete_item(self, f_id: str):
         return self._post("/item/delete", data={"id": f_id})
 
-    @retry(stop=stop_after_attempt(5), wait=wait_exponential(2, min=1, max=20), retry_error_callback=on_fail)
+    @retry(stop=tries(5), wait=w_exp(2, max=20), retry_error_callback=rh.on_fail, before_sleep=rh.on_retry)
     def retry_transfer(self, transfer_id: str):
         response = self._post("/transfer/retry", data={"id": transfer_id})
         if response["status"] != "success":
@@ -139,14 +140,14 @@ class PremiumizeAPI:
         return response
 
     # unused
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(2, min=1, max=20), retry_error_callback=on_fail)
+    @retry(stop=tries(3), wait=w_exp(2, max=20), retry_error_callback=rh.on_fail, before_sleep=rh.on_retry)
     def create_transfer(self, src: str, folder_id: str = None):
         data = {"src": src}
         if folder_id:
             data["folder_id"] = folder_id
         return self._post("/transfer/create", data=data)
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(2, min=1, max=20), retry_error_callback=on_fail)
+    @retry(stop=tries(3), wait=w_exp(2, max=20), retry_error_callback=rh.on_fail, before_sleep=rh.on_retry)
     def delete_transfer(self, transfer_id: str):
         result = self._post("/transfer/delete", data={"id": transfer_id})
         if result["status"] != "success":
@@ -154,7 +155,7 @@ class PremiumizeAPI:
         return result
 
     # unused
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(2, min=1, max=20), retry_error_callback=on_fail)
+    @retry(stop=tries(3), wait=w_exp(2, max=20), retry_error_callback=rh.on_fail, before_sleep=rh.on_retry)
     def clear_all_finished_transfers(self):
         return self._post("/transfer/clearfinished", data={})
 
@@ -176,7 +177,7 @@ class PremiumizeAPI:
             raise RuntimeError(f"Request failed with status code {response.status_code}, {response.text}")
         return response.json()
 
-    @retry(stop=stop_after_attempt(5), wait=wait_exponential(min=1, max=60), retry_error_callback=on_fail)
+    @retry(stop=tries(5), wait=w_exp(max=60), retry_error_callback=rh.on_fail, before_sleep=rh.on_retry)
     def ensure_directory_exists(self, directory: str) -> None:
         resp = self.create_folder(directory)
         if resp["status"] != "success" and resp["message"] != "This folder already exists.":
@@ -191,7 +192,7 @@ class PremiumizeAPI:
         raise RuntimeError(f"Could not find folder id (even though it should exist) for {directory}")
 
     # unused
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(2, min=1, max=30), retry_error_callback=on_fail)
+    @retry(stop=tries(3), wait=w_exp(2, max=30), retry_error_callback=rh.on_fail, before_sleep=rh.on_retry)
     def clear_folder(self, directory_id: str) -> None:
         folder = self.list_folder(directory_id)
 
@@ -201,7 +202,7 @@ class PremiumizeAPI:
             else:
                 self.delete_item(item.id)
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(2, min=1, max=20), retry_error_callback=on_fail)
+    @retry(stop=tries(3), wait=w_exp(2, max=20), retry_error_callback=rh.on_fail, before_sleep=rh.on_retry)
     def expect_fail_msg(self, response: dict, msg: str) -> None:
         if response["status"] != "success" and "message" in response and response["message"] == msg:
             return True
@@ -209,7 +210,7 @@ class PremiumizeAPI:
             raise RetryError(f"Failed to upload nzb: {response}")  # Other error than the expected one
         return False  # success
 
-    @retry(stop=stop_after_attempt(5), wait=wait_exponential(2, min=2, max=120), retry_error_callback=on_fail)
+    @retry(stop=tries(5), wait=w_exp(2, min=2, max=120), retry_error_callback=rh.on_fail, before_sleep=rh.on_retry)
     def upload_nzb(self, nzb_path: str, target_folder_id: str):
         with open(nzb_path, "r+b") as f:
             logger.warning(f"Uploading (try ) {nzb_path} to premiumize downloader ...")

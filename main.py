@@ -1,9 +1,11 @@
 import os
 from time import sleep
 from src.manager import Manager
-from src.helper import get_logger
+from src.helper import RetryHandler, get_logger
+from tenacity import retry, wait_exponential as w_exp, stop_after_attempt as tries
 
 logger = get_logger(__name__)
+rh = RetryHandler(logger)
 
 BLACKHOLE_PATH = os.getenv("BLACKHOLE_PATH", "/blackhole")
 DL_PATH = os.getenv("DOWNLOAD_PATH", "/downloads")
@@ -23,12 +25,17 @@ def check_path(dir_path, dir_name):
         raise RuntimeError(f"{dir_name} directory is not writable: {dir_path}, check your mounts and configuration")
 
 
-if __name__ == "__main__":
+@retry(wait=120, retry_error_callback=rh.on_fail, before_sleep=rh.on_retry)
+def run_manager(manager: Manager):
+    manager.run()
+
+
+@retry(wait=w_exp(max=300), retry_error_callback=rh.on_fail, before_sleep=rh.on_retry)
+def main():
     if not API_KEY:
         raise RuntimeError("Please set the API_KEY environment variable")
 
     paths = {BLACKHOLE_PATH: "Blackhole", DL_PATH: "Download", DONE_PATH: "Done", CONFIG_PATH: "Config"}
-    # sleep(120)
     for path, name in paths.items():
         check_path(path, name)
 
@@ -43,3 +50,7 @@ if __name__ == "__main__":
         except Exception as e:  # pylint: disable=broad-except # we intentionally catch all exceptions
             logger.error(f"Manager failed: {str(e)} - restarting in {RESTART_AFTER_FATAL_TIME}s ...")
             sleep(RESTART_AFTER_FATAL_TIME)
+
+
+if __name__ == "__main__":
+    main()
