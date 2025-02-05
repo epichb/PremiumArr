@@ -239,6 +239,11 @@ class Manager:
                 self.db.conn.commit()
                 # TODO: Add a stage where nzbs for failed items are deleted and also from the cloud
                 self.to_watch.pop(item.id)
+                # move the nzb to the archive
+                q = "SELECT full_path FROM data WHERE dl_id = ?"
+                nzb_full_path = self.db.cursor.execute(q, (item.id,)).fetchone()[0]
+                shutil.move(nzb_full_path, f"{self.config_path}/archive/{item.name}")
+                continue
 
             logger.warning(f"Item failed to download ({cur_retry_count}/{MAX_RETRY_COUNT}): retrying ... {item}")
             self.pm.retry_transfer(item.id)  # unknown errors are resolvable by retrying on premiumize downloader
