@@ -1,7 +1,10 @@
 import os
+import logging
 from time import sleep
 from src.manager import Manager
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 BLACKHOLE_PATH = os.getenv("BLACKHOLE_PATH", "/blackhole")
 DL_PATH = os.getenv("DOWNLOAD_PATH", "/downloads")
@@ -14,7 +17,7 @@ API_KEY = os.getenv("API_KEY")
 
 
 def check_path(dir_path, dir_name):
-    print(f"Checking {dir_name} directory: {dir_path}")
+    logger.info(f"Checking {dir_name} directory: {dir_path}")
     if not os.path.exists(dir_path):
         raise RuntimeError(f"{dir_name} directory does not exist: {dir_path}, check your mounts and configuration")
     if not os.access(dir_path, os.W_OK):
@@ -39,5 +42,5 @@ if __name__ == "__main__":
         try:
             manager.run()
         except Exception as e:  # pylint: disable=broad-except # we intentionally catch all exceptions
-            print(f"Manager failed: {str(e)} - restarting in {RESTART_AFTER_FATAL_TIME}s ...")
+            logger.error(f"Manager failed: {str(e)} - restarting in {RESTART_AFTER_FATAL_TIME}s ...")
             sleep(RESTART_AFTER_FATAL_TIME)

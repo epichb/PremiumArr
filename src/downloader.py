@@ -1,7 +1,11 @@
 import os
+import logging
 from pySmartDL import SmartDL
 from tenacity import retry, stop_after_attempt, wait_exponential
 from src.helper import on_fail
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 class Downloader:
@@ -15,7 +19,7 @@ class Downloader:
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(2, min=30, max=90), retry_error_callback=on_fail)
     def download(self, url: str, name: str) -> None:
         if os.path.exists(f"{self.dest}/{name}"):
-            print(f"File already downloaded -> skipping ({self.dest}{name})")
+            logger.info(f"File already downloaded -> skipping ({self.dest}{name})")
             return
 
         os.makedirs(self.dest, exist_ok=True)
@@ -26,6 +30,7 @@ class Downloader:
 
         try:
             downloader.start()
-            print(f"Download completed! File saved to: {downloader.get_dest()}")
+            logger.info(f"Download completed! File saved to: {downloader.get_dest()}")
         except Exception as e:  # pylint: disable=broad-except # we intentionally catch all exceptions
-            print(f"Download failed: {str(e)}")
+            logger.error(f"Download failed: {str(e)}")
+            raise RuntimeError(f"Download failed: {str(e)}")  # we want to retry the download if it fails

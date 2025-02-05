@@ -1,5 +1,9 @@
 import sqlite3
 import os
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 class Database:
@@ -7,12 +11,13 @@ class Database:
         # Create database file does not exist
         path = f"{config_path}/data.db"
         if not os.path.exists(path):
+            logger.info(f"Database file does not exist, creating: {path}")
             open(path, "w", encoding="utf-8").close()
 
         self.conn = sqlite3.connect(path)
         self.cursor = self.conn.cursor()
 
-        print("Create tables if not exists...")
+        logger.info("Create tables if not exists...")
 
         # fmt: off
         self.cursor.execute("""

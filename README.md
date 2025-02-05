@@ -84,3 +84,6 @@ Feel free to submit issues or pull requests for improvements or bug fixes.
 - [ ] Think about a state machine for the Downloads so the next step per download is clear
 - [ ] Add a way to pause downloads
 - [ ] Add a Sheduler to download files at a specific time
+
+## Latest Changes
+- [X] Add real logging (with levels) (currently only print statements)

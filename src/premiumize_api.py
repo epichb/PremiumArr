@@ -1,8 +1,12 @@
 import os
 import random
 import requests
+import logging
 from tenacity import retry, stop_after_attempt, wait_exponential, RetryError  # retry_if_exception_type,
 from src.helper import on_fail
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 BASE_URL = "https://www.premiumize.me/api"  # https://app.swaggerhub.com/apis-docs/premiumize.me/api
 # IMPROVEMENT IDEA: Add a check for "Network error" and busy wait till the network is back up
@@ -209,11 +213,11 @@ class PremiumizeAPI:
     @retry(stop=stop_after_attempt(5), wait=wait_exponential(2, min=2, max=120), retry_error_callback=on_fail)
     def upload_nzb(self, nzb_path: str, target_folder_id: str):
         with open(nzb_path, "r+b") as f:
-            print(f"Uploading (try ) {nzb_path} to premiumize downloader ...")
+            logger.warning(f"Uploading (try ) {nzb_path} to premiumize downloader ...")
             resp = self._post("/transfer/create", data={"folder_id": target_folder_id}, files={"file": f})
 
             while self.expect_fail_msg(resp, "You have already added this nzb file."):
-                print("Already uploaded this nzb... circumventing the duplicate check, free retry!")
+                logger.warning("Already uploaded this nzb... circumventing the duplicate check, free retry!")
                 f.seek(0, os.SEEK_END)  # seek to the end of the file
                 f.write(b" " * random.randint(1, 100))  # append spaces to circumvent the premiumize duplicate check
                 f.seek(0)

@@ -1,11 +1,15 @@
 import os
 import shutil
+import logging
 from time import sleep
 from tenacity import retry, stop_after_attempt, wait_exponential
 from src.downloader import Downloader
 from src.premiumize_api import PremiumizeAPI
 from src.helper import on_fail
 from src.db import Database
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 class Manager:
@@ -23,17 +27,17 @@ class Manager:
 
         self.premiumarr_root_id = self.pm.ensure_directory_exists(premiumize_cloud_root_dir_name)
         assert self.premiumarr_root_id, "Failed to get root folder ID"
-        print("Manager finished init")
+        logger.info("Manager finished init")
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=10), retry_error_callback=on_fail)
     def test_basic_api_connection(self):
         info = self.pm.get_account_info()
-        print(f"Premiumize account info: {info}")
+        logger.info(f"Premiumize account info: {info}")
         assert info["status"] == "success", f"Failed to get account info, check your API key! (ERR: {info})"
 
     @retry(stop=stop_after_attempt(1), wait=wait_exponential(min=1, max=10), retry_error_callback=on_fail)
     def restore_state(self):
-        print("Restoring state ...")
+        logger.info("Restoring state ...")
 
         # handle cases where the transaction was not completed
         # we can't ... we don't have the transaction id and the folder_id is not set when the transfer errored
@@ -52,32 +56,32 @@ class Manager:
         for item in self.db.cursor.execute(to_download).fetchall():
             self.to_download.append(((item[0], item[1], item[2]), item[3]))
 
-        print("Restored state!")
+        logger.info("Restored state!")
 
     @retry(stop=stop_after_attempt(6), wait=wait_exponential(min=5, max=120), retry_error_callback=on_fail)
     def run(self):
         self.restore_state()
 
         while True:
-            print("Checking for incoming NZBs ...")
-            self.check_folder_for_incoming_nzbs()  # done persistently
+            logger.info("Checking for incoming NZBs ...")
+            self.check_folder_for_incoming_nzbs()
 
-            print("Uploading NZBs to premiumize downloader ...")
-            self.upload_nzbs_to_premiumize_downloader()  # done persistently
+            logger.info("Uploading NZBs to premiumize downloader ...")
+            self.upload_nzbs_to_premiumize_downloader()
 
-            print("Checking for finished cloud downloads ...")
-            self.check_premiumize_downloader_state()  # done persistently
+            logger.info("Checking for finished cloud downloads ...")
+            self.check_premiumize_downloader_state()
 
-            print("Checking if there are files to download to local ...")
-            self.download_files_from_premiumize()  # done persistently
+            logger.info("Checking if there are files to download to local ...")
+            self.download_files_from_premiumize()
 
-            print("Cleaning up online files ...")
-            self.cleanup_online_files()  # done persistently
+            logger.info("Cleaning up online files ...")
+            self.cleanup_online_files()
 
-            print("Moving files to done folder ...")
-            self.move_to_done()  # done persistently
+            logger.info("Moving files to done folder ...")
+            self.move_to_done()
 
-            print(f"Sleeping for {self.chk_delay}s ...\n")
+            logger.info(f"Sleeping for {self.chk_delay}s ...\n")
             sleep(self.chk_delay)
 
     @retry(stop=stop_after_attempt(5), wait=wait_exponential(2, min=1, max=30), retry_error_callback=on_fail)
@@ -88,21 +92,21 @@ class Manager:
             d_id, d_name, category, nzb_full_path = item
             category = category[1:] if category.startswith("/") else category  # normalize category path
 
-            print(f"Moving files to done folder for {d_name} ...")
+            logger.info(f"Moving files to done folder for {d_name} ...")
             os.makedirs(f"{self.done_path}/{category}", exist_ok=True)
             shutil.move(f"{self.dl_path}/{d_name}", f"{self.done_path}/{category}/{d_name}")
             shutil.move(nzb_full_path, f"{self.config_path}/archive/{d_name}")  # move the nzb to archive
 
             self.db.cursor.execute("UPDATE data SET state = 'done' WHERE id = ?", (d_id,))
             self.db.conn.commit()
-            print(f"COMPLETED {d_name}")
+            logger.info(f"COMPLETED {d_name}")
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(2, min=5, max=45), retry_error_callback=on_fail)
     def cleanup_online_files(self):
         q = "SELECT id, dl_id, nzb_name FROM data WHERE state = 'downloaded'"
         for item in self.db.cursor.execute(q).fetchall():
             d_id, dl_id, d_name = item
-            print(f"Removing files from premiumize cloud for {d_name} ...")
+            logger.info(f"Removing files from premiumize cloud for {d_name} ...")
             self.pm.delete_transfer(dl_id)
             self.db.cursor.execute("UPDATE data SET state = 'downloaded and online cleaned up' WHERE id = ?", (d_id,))
             self.db.conn.commit()
@@ -117,11 +121,11 @@ class Manager:
             links_and_paths: list[tuple[str, str]] = self.get_folder_as_download_links(d_folder_id, d_name)
             for link, path, name in links_and_paths:
                 self.dl.dest = f"{self.dl_path}/{path}"
-                print(f'Downloading: "{self.dl_path}/{path}/{name}" from {link[:40]}...')
+                logger.info(f'Downloading: "{self.dl_path}/{path}/{name}" from {link[:40]}...')
                 self.dl.download(url=link, name=name)
 
-            print(f"Downloaded all files from {d_name} ...")
-            print(f"Removing the transfer from premiumize cloud and downloader for {d_name} ...")
+            logger.info(f"Downloaded all files from {d_name} ...")
+            logger.info(f"Removing the transfer from premiumize cloud and downloader for {d_name} ...")
 
             self.db.cursor.execute("UPDATE data SET state = 'downloaded' WHERE id = ?", (d_id,))
             self.db.conn.commit()
@@ -151,7 +155,7 @@ class Manager:
                     continue
                 if file.endswith(".nzb"):
                     category_path = root[len(self.blackhole_path) :]
-                    print(f'Found new NZB file: "{file}" in subfolder: "{category_path}"')
+                    logger.info(f'Found new NZB file: "{file}" in subfolder: "{category_path}"')
 
                     self.db.cursor.execute(
                         "INSERT INTO data (nzb_name, state, full_path, category_path) VALUES (?, ?, ?, ?)",
@@ -161,13 +165,13 @@ class Manager:
 
                     self.to_premiumize.append((f"{root}/{file}", category_path))
                 else:
-                    print(f"Found non-NZB file: {file} - ignoring")
+                    logger.info(f"Found non-NZB file: {file} - ignoring")
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=2, max=30), retry_error_callback=on_fail)
     def upload_nzbs_to_premiumize_downloader(self):
         while self.to_premiumize:
             nzb_path, category_path = self.to_premiumize[0]
-            print(f"Uploading NZB file: {nzb_path} ...")
+            logger.info(f"Uploading NZB file: {nzb_path} ...")
 
             q = "UPDATE data SET state = 'uploaded', dl_id = ? WHERE full_path = ?"
             dl_id = self.pm.upload_nzb(nzb_path, self.premiumarr_root_id)
@@ -177,7 +181,7 @@ class Manager:
 
             self.to_watch[dl_id] = [0, category_path]
             self.to_premiumize.pop(0)
-            print(f"Uploaded NZB file: {nzb_path}")
+            logger.info(f"Uploaded NZB file: {nzb_path}")
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=2, max=30), retry_error_callback=on_fail)
     def check_premiumize_downloader_state(self):
@@ -209,10 +213,10 @@ class Manager:
             self.db.conn.commit()
 
             self.to_download.append(((item.id, item.name, item.folder_id), from_watch[1]))  # from_watch[1] == nzb_path
-            print(f"Added item to download list: {item}")
+            logger.info(f"Added item to download list: {item}")
 
             self.to_watch.pop(item.id)
-            print(f"Removed item from watch list: {item}")
+            logger.info(f"Removed item from watch list: {item}")
 
         for item in filtered_failed:
             self.to_watch[item.id][0] += 1  # increase retry_count
@@ -224,18 +228,18 @@ class Manager:
             cur_retry_count = self.to_watch[item.id][0]
             max_retry_count = 6
             if cur_retry_count >= max_retry_count:
-                # TODO: Do I really want to handle this here already?
-                print(f'premiumize failed for: "{item}", notifying sonarr (NOT IMPLEMENTED YET)...')  # TODO: implement
+                # TODO: Do we really want to handle this here already?
+                logger.error(f'premiumize failed for: "{item}", notifying sonarr (NOT IMPL. YET)...')  # TODO: IMPL.
                 self.db.cursor.execute("UPDATE data SET state = 'failed' WHERE dl_id = ?", (item.id,))
                 self.db.conn.commit()
                 # TODO: Add a stage where nzbs for failed items are deleted and also from the cloud
                 self.to_watch.pop(item.id)
 
-            print(f"Item failed to download ({cur_retry_count}/{max_retry_count}): retrying ... {item}")
+            logger.warning(f"Item failed to download ({cur_retry_count}/{max_retry_count}): retrying ... {item}")
             self.pm.retry_transfer(item.id)  # unknown errors are resolvable by retrying on premiumize downloader
 
         # Print the status of the transfers that are still in progress
         progressing = [i for i in filtered_waiting if i.status != "finished" and i.status not in retry_cases]
-        print("Items in progress:")
+        logger.info("Items in progress:")
         for item in progressing:
-            print(f"  {item.name}: {item.message}")
+            logger.info(f"  {item.name}: {item.message}")
