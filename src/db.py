@@ -1,9 +1,8 @@
 import sqlite3
 import os
-import logging
+from src.helper import get_logger
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class Database:

@@ -1,11 +1,9 @@
 import os
-import logging
 from pySmartDL import SmartDL
 from tenacity import retry, stop_after_attempt, wait_exponential
-from src.helper import on_fail
+from src.helper import on_fail, get_logger
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class Downloader:

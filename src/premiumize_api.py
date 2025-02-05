@@ -1,15 +1,14 @@
 import os
 import random
 import requests
-import logging
 from tenacity import retry, stop_after_attempt, wait_exponential, RetryError  # retry_if_exception_type,
-from src.helper import on_fail
+from src.helper import on_fail, get_logger
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 BASE_URL = "https://www.premiumize.me/api"  # https://app.swaggerhub.com/apis-docs/premiumize.me/api
 # IMPROVEMENT IDEA: Add a check for "Network error" and busy wait till the network is back up
+#                   This concept might be called circuit breaker
 
 
 class FolderFileResponse:

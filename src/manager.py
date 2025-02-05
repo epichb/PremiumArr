@@ -1,15 +1,13 @@
 import os
 import shutil
-import logging
 from time import sleep
 from tenacity import retry, stop_after_attempt, wait_exponential
 from src.downloader import Downloader
 from src.premiumize_api import PremiumizeAPI
-from src.helper import on_fail
+from src.helper import on_fail, get_logger
 from src.db import Database
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class Manager:

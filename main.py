@@ -1,10 +1,9 @@
 import os
-import logging
 from time import sleep
 from src.manager import Manager
+from src.helper import get_logger
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 BLACKHOLE_PATH = os.getenv("BLACKHOLE_PATH", "/blackhole")
 DL_PATH = os.getenv("DOWNLOAD_PATH", "/downloads")
