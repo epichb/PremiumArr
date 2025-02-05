@@ -1,6 +1,7 @@
 import os
 import shutil
 from time import sleep
+from datetime import datetime, timedelta, UTC
 from tenacity import retry, stop_after_attempt as tries, wait_exponential as w_exp
 from src.downloader import Downloader
 from src.premiumize_api import PremiumizeAPI
@@ -9,6 +10,8 @@ from src.db import Database
 
 logger = get_logger(__name__)
 rh = RetryHandler(logger)
+MAX_RETRY_COUNT = os.getenv("MAX_RETRY_COUNT", 6)
+MAX_CLOUD_DL_MOVE_RETRY_COUNT = os.getenv("MAX_CLOUD_DL_MOVE_RETRY_COUNT", 3)
 
 
 class Manager:
@@ -42,8 +45,8 @@ class Manager:
         # we can't ... we don't have the transaction id and the folder_id is not set when the transfer errored
         # or is not done yet.... ignoring for now
 
-        to_premiumize = "SELECT full_path, category_path FROM data WHERE state = 'found'"
-        for item in self.db.cursor.execute(to_premiumize).fetchall():
+        q = "SELECT full_path, category_path FROM data WHERE state = 'found'"
+        for item in self.db.cursor.execute(q).fetchall():
             self.to_premiumize.append((item[0], item[1]))
 
         to_watch = "SELECT dl_id, category_path, dl_retry_count FROM data WHERE state = 'uploaded'"
@@ -74,10 +77,10 @@ class Manager:
             logger.info("Checking if there are files to download to local ...")
             self.download_files_from_premiumize()
 
-            logger.info("Cleaning up online files ...")
+            logger.info("Checking if there are files to clean up in the cloud ...")
             self.cleanup_online_files()
 
-            logger.info("Moving files to done folder ...")
+            logger.info("Checking if there are files to move to done folder ...")
             self.move_to_done()
 
             logger.info(f"Sleeping for {self.chk_delay}s ...\n")
@@ -172,10 +175,11 @@ class Manager:
             nzb_path, category_path = self.to_premiumize[0]
             logger.info(f"Uploading NZB file: {nzb_path} ...")
 
-            q = "UPDATE data SET state = 'uploaded', dl_id = ? WHERE full_path = ?"
             dl_id = self.pm.upload_nzb(nzb_path, self.premiumarr_root_id)
+            cld_dl_timeout_time = datetime.now(UTC) + timedelta(minutes=15)
             # Theoretically a crash here would cause the nzb to be uploaded again, but that is not really a issue
-            self.db.cursor.execute(q, (dl_id, nzb_path))
+            q = "UPDATE data SET state = 'uploaded', dl_id = ?, cld_dl_timeout_time = ? WHERE full_path = ?"
+            self.db.cursor.execute(q, (dl_id, cld_dl_timeout_time, nzb_path))
             self.db.conn.commit()
 
             self.to_watch[dl_id] = [0, category_path]
@@ -200,9 +204,11 @@ class Manager:
         retry_cases = ["deleted", "banned", "error", "timeout"]
 
         # filter the transfers that are in the waiting list
-        filtered_waiting = [item for item in transfers if item.id in self.to_watch]
-        filtered_finished = [item for item in filtered_waiting if item.status == "finished"]
-        filtered_failed = [item for item in filtered_waiting if item.status in retry_cases]
+        filtered_ours = [item for item in transfers if item.id in self.to_watch]
+        filtered_finished = [item for item in filtered_ours if item.status == "finished"]
+        filtered_failed = [item for item in filtered_ours if item.status in retry_cases]
+        filtered_waiting = [item for item in filtered_ours if item not in filtered_finished + filtered_failed]
+        somehow_lost_ids = [item for item in self.to_watch if not any(item == x.id for x in filtered_ours)]
 
         for item in filtered_finished:
             from_watch = self.to_watch[item.id]
@@ -225,8 +231,8 @@ class Manager:
             self.db.conn.commit()
 
             cur_retry_count = self.to_watch[item.id][0]
-            max_retry_count = 6
-            if cur_retry_count >= max_retry_count:
+
+            if cur_retry_count >= MAX_RETRY_COUNT:
                 # TODO: Do we really want to handle this here already?
                 logger.error(f'premiumize failed for: "{item}", notifying sonarr (NOT IMPL. YET)...')  # TODO: IMPL.
                 self.db.cursor.execute("UPDATE data SET state = 'failed' WHERE dl_id = ?", (item.id,))
@@ -234,11 +240,57 @@ class Manager:
                 # TODO: Add a stage where nzbs for failed items are deleted and also from the cloud
                 self.to_watch.pop(item.id)
 
-            logger.warning(f"Item failed to download ({cur_retry_count}/{max_retry_count}): retrying ... {item}")
+            logger.warning(f"Item failed to download ({cur_retry_count}/{MAX_RETRY_COUNT}): retrying ... {item}")
             self.pm.retry_transfer(item.id)  # unknown errors are resolvable by retrying on premiumize downloader
 
         # Print the status of the transfers that are still in progress
-        progressing = [i for i in filtered_waiting if i.status != "finished" and i.status not in retry_cases]
-        logger.info("Items in progress:")
-        for item in progressing:
-            logger.info(f"  {item.name}: {item.message}")
+        for item in filtered_waiting:
+            # get item infos:
+            q = "SELECT cld_dl_timeout_time, cld_dl_move_retry_c, full_path, category_path FROM data WHERE dl_id = ?"
+            c_dc_timeout_time, cld_dl_move_retry_c, full_pth, cat_pth = self.db.cursor.execute(q, (item.id,)).fetchone()
+
+            c_dc_timeout_time = datetime.strptime(c_dc_timeout_time, "%Y-%m-%d %H:%M:%S.%f+00:00").replace(tzinfo=UTC)
+            # to also set tzinfo=UTC:
+            # c_dc_timeout_time = datetime.strptime(c_dc_timeout_time, "%Y-%m-%d %H:%M:%S.%f+00:00").replace(tzinfo=UTC)
+
+            # Q: Can a cloud dl get stuck in states other than "Moving to cloud"? Maybe we wait for it to happen...
+            if datetime.now(UTC) > c_dc_timeout_time:
+                if item.message != "Moving to cloud":
+                    logger.error(f"Transfer stuck: {item.name} at unexpected state '{item.message}' !PLS REPORT THAT!")
+                    continue
+                logger.error(f"Transfer timed out: {item.name}")
+
+                if cld_dl_move_retry_c >= MAX_CLOUD_DL_MOVE_RETRY_COUNT:
+                    logger.error(f"Cloud move retries exceeded for {item.name}, notifying sonarr (NOT IMPL. YET) ...")
+                    # TODO: IMPL. notify sonarr
+                    continue
+
+                self.pm.delete_transfer(item.id)  # remove the transfer from the cloud
+                # reset the state so it will be uploaded again but increase the retry count
+                q = (
+                    "UPDATE data SET state = 'found', cld_dl_move_retry_c = cld_dl_move_retry_c + 1, dl_id = NULL,"
+                    + " dl_retry_count = 0, dl_folder_id = NULL, cld_dl_timeout_time = NULL WHERE dl_id = ?"
+                )
+                self.db.cursor.execute(q, (item.id,))  # TEST ME
+                self.db.conn.commit()
+                self.to_watch.pop(item.id)  # remove the transfer from the watch list
+                self.to_premiumize.append((full_pth, cat_pth))  # add it to the DL list again
+
+                continue
+
+            logger.info("In progress:")
+            logger.info(f'  name:"{item.name}", msg: "{item.message}"')
+
+        for transfer_id in somehow_lost_ids:
+            q = "SELECT nzb_name, full_path, category_path FROM data WHERE dl_id = ?"
+            name, full_path, category_path = self.db.cursor.execute(q, (transfer_id,)).fetchone()
+
+            logger.error(f"Transfer LOST: {name} was lost! Increasing retry count ...")
+            q = (
+                "UPDATE data SET state = 'found', cld_dl_move_retry_c = cld_dl_move_retry_c + 1, dl_id = NULL,"
+                + " dl_retry_count = 0, dl_folder_id = NULL, cld_dl_timeout_time = NULL WHERE dl_id = ?"
+            )
+            self.db.cursor.execute(q, (transfer_id,))  # TEST ME
+            self.db.conn.commit()
+            self.to_watch.pop(transfer_id)  # remove the transfer from the watch list
+            self.to_premiumize.append((full_path, category_path))

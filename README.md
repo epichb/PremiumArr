@@ -5,6 +5,8 @@ In the future I will add support for the API of Sonarr, Radarr, Lidarr, ... so i
 
 The state is preserved in a SQLite DB - so even if the container is restarted / crashed / updated the state is preserved.
 
+
+
 It's still under heavy development, so expect bugs and missing features.
 
 
@@ -47,18 +49,19 @@ services:
 
 ## Environment Variables
 
-| Name                           | Description                                            | Default Value | Required |
-| ------------------------------ | ------------------------------------------------------ | ------------- | -------- |
-| API_KEY                        | The API key for the Premiumize.me API                  |               | Yes      |
-| BLACKHOLE_PATH                 | The path to the blackhole folder                       | /blackhole    | No       |
-| CONFIG_PATH                    | The path to the config folder                          | /config       | No       |
-| DOWNLOAD_PATH                  | The path to the downloads folder                       | /downloads    | No       |
-| DONE_PATH                      | The path to the done folder                            | /done         | No       |
-| RECHECK_PREMIUMIZE_CLOUD_DELAY | The delay in seconds to recheck the Premiumize Cloud   | 60            | No       |
-| DL_SPEED_LIMIT_KB              | The download speed limit in KB/s                       | -1            | No       |
-| DL_THREADS                     | The number of download threads                         | 2             | No       |
-| PREMIUMIZE_CLOUD_ROOT_DIR_NAME | The name of the root directory in the Premiumize Cloud | premiumarr    | No       |
-
+| Name                           | Description                                                                                                     | Default Value | Required |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------- | ------------- | -------- |
+| API_KEY                        | The API key for the Premiumize.me API                                                                           |               | Yes      |
+| BLACKHOLE_PATH                 | The path to the blackhole folder                                                                                | /blackhole    | No       |
+| CONFIG_PATH                    | The path to the config folder                                                                                   | /config       | No       |
+| DOWNLOAD_PATH                  | The path to the downloads folder                                                                                | /downloads    | No       |
+| DONE_PATH                      | The path to the done folder                                                                                     | /done         | No       |
+| RECHECK_PREMIUMIZE_CLOUD_DELAY | The delay in seconds to recheck the Premiumize Cloud                                                            | 60            | No       |
+| DL_SPEED_LIMIT_KB              | The download speed limit in KB/s                                                                                | -1            | No       |
+| DL_THREADS                     | The number of download threads                                                                                  | 2             | No       |
+| PREMIUMIZE_CLOUD_ROOT_DIR_NAME | The name of the root directory in the Premiumize Cloud                                                          | premiumarr    | No       |
+| MAX_RETRY_COUNT                | The maximum number of retries for a download (That errored in the premiumize downloader)                        | 6             | No       |
+| MAX_CLOUD_DL_MOVE_RETRY_COUNT  | The maximum number of retries for a download (That got stuck on 'Moving to cloud' in the premiumize downloader) | 3             | No       |
 
 
 ## To build the docker image locally
@@ -76,14 +79,15 @@ docker build -t premiumarr .
 Feel free to submit issues or pull requests for improvements or bug fixes.
 
 ## Improvements to come
-- [ ] Monitor how long a DL is 'moving to cloud' and retry if it takes too long (more than 10min?)
 - [ ] Add support for Sonarr, Radarr, Lidarr, ... API to mark downloads as failed
   - [ ] Maybe fake the NZBGet API to be easy integrated in Sonarr, Radarr, Lidarr, ...
 - [ ] Maybe add a WebUI to see the status
 - [ ] Remove Lists and use solely the DB (where it fits)
-- [ ] Think about a state machine for the Downloads so the next step per download is clear
+- [ ] Think about a state machine for the Downloads so the next step per download is clear (and fallbacks in state are easy to implement)
 - [ ] Add a way to pause downloads
-- [ ] Add a Sheduler to download files at a specific time
+- [ ] Add a Scheduler to download files at a specific time
 
 ## Latest Changes
 - [X] Add real logging (with levels) (currently only print statements)
+- [X] Monitor how long a DL is 'Moving to cloud' and retry if it takes too long (more than 15min)
+- [X] Find downloads that are 'somehow lost' e.g. the user removed them before they got downloaded it from the cloud downloader and again upload them do the web downloader

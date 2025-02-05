@@ -102,6 +102,7 @@ class PremiumizeAPI:
         if resp.status != "success":
             raise RetryError(f"Failed to get transfer list: {resp}")
         assert isinstance(resp, TransferListResponse), f"Expected type transfer_list_response, got {type(resp)}"
+        logger.debug(f"Got {len(resp.transfers)} transfers\n  {resp.transfers}")
         return resp.transfers
 
     @retry(stop=tries(3), wait=w_exp(2, max=20), retry_error_callback=rh.on_fail, before_sleep=rh.on_retry)
@@ -213,7 +214,7 @@ class PremiumizeAPI:
     @retry(stop=tries(5), wait=w_exp(2, min=2, max=120), retry_error_callback=rh.on_fail, before_sleep=rh.on_retry)
     def upload_nzb(self, nzb_path: str, target_folder_id: str):
         with open(nzb_path, "r+b") as f:
-            logger.warning(f"Uploading (try ) {nzb_path} to premiumize downloader ...")
+            logger.info(f"Uploading {nzb_path} to premiumize downloader ...")
             resp = self._post("/transfer/create", data={"folder_id": target_folder_id}, files={"file": f})
 
             while self.expect_fail_msg(resp, "You have already added this nzb file."):
