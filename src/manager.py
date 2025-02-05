@@ -54,7 +54,7 @@ class Manager:
             dl_id, category_path, dl_retry_count = item
             self.to_watch[dl_id] = [dl_retry_count, category_path]
 
-        to_download = "SELECT id, nzb_name, dl_folder_id, full_path FROM data WHERE state = 'in_premiumize_cloud'"
+        to_download = "SELECT id, nzb_name, dl_folder_id, full_path FROM data WHERE state = 'in premiumize cloud'"
         for item in self.db.cursor.execute(to_download).fetchall():
             self.to_download.append(((item[0], item[1], item[2]), item[3]))
 
@@ -63,27 +63,28 @@ class Manager:
     @retry(stop=tries(6), wait=w_exp(min=5, max=120), retry_error_callback=rh.on_fail, before_sleep=rh.on_retry)
     def run(self):
         self.restore_state()
+        logger.info(f"Starting manager loop ... with check delays of {self.chk_delay}s")
 
         while True:
-            logger.info("Checking for incoming NZBs ...")
+            logger.debug("Checking for incoming NZBs ...")
             self.check_folder_for_incoming_nzbs()
 
-            logger.info("Uploading NZBs to premiumize downloader ...")
+            logger.debug("Uploading NZBs to premiumize downloader ...")
             self.upload_nzbs_to_premiumize_downloader()
 
-            logger.info("Checking for finished cloud downloads ...")
+            logger.debug("Checking for finished cloud downloads ...")
             self.check_premiumize_downloader_state()
 
-            logger.info("Checking if there are files to download to local ...")
+            logger.debug("Checking if there are files to download to local ...")
             self.download_files_from_premiumize()
 
-            logger.info("Checking if there are files to clean up in the cloud ...")
+            logger.debug("Checking if there are files to clean up in the cloud ...")
             self.cleanup_online_files()
 
-            logger.info("Checking if there are files to move to done folder ...")
+            logger.debug("Checking if there are files to move to done folder ...")
             self.move_to_done()
 
-            logger.info(f"Sleeping for {self.chk_delay}s ...\n")
+            logger.debug(f"Sleeping for {self.chk_delay}s ...\n")
             sleep(self.chk_delay)
 
     @retry(stop=tries(5), wait=w_exp(2, max=30), retry_error_callback=rh.on_fail, before_sleep=rh.on_retry)
@@ -99,8 +100,12 @@ class Manager:
             shutil.move(f"{self.dl_path}/{d_name}", f"{self.done_path}/{category}/{d_name}")
             shutil.move(nzb_full_path, f"{self.config_path}/archive/{d_name}")  # move the nzb to archive
 
-            self.db.cursor.execute("UPDATE data SET state = 'done' WHERE id = ?", (d_id,))
+            # self.db.cursor.execute("UPDATE data SET state = 'done' WHERE id = ?", (d_id,))
+            # self.db.conn.commit()
+
+            self.db.cursor.execute("DELETE FROM data WHERE id = ?", (d_id,))
             self.db.conn.commit()
+            
             logger.info(f"COMPLETED {d_name}")
 
     @retry(stop=tries(3), wait=w_exp(2, min=5, max=45), retry_error_callback=rh.on_fail, before_sleep=rh.on_retry)
@@ -211,13 +216,13 @@ class Manager:
         somehow_lost_ids = [item for item in self.to_watch if not any(item == x.id for x in filtered_ours)]
 
         for item in filtered_finished:
-            from_watch = self.to_watch[item.id]
+            category_path = self.to_watch[item.id][1]
 
-            q = "UPDATE data SET state = 'in premiumize cloud' AND dl_folder_id = ? WHERE dl_id = ?"
+            q = "UPDATE data SET state = 'in premiumize cloud', dl_folder_id = ? WHERE dl_id = ?"
             self.db.cursor.execute(q, (item.folder_id, item.id))
             self.db.conn.commit()
 
-            self.to_download.append(((item.id, item.name, item.folder_id), from_watch[1]))  # from_watch[1] == nzb_path
+            self.to_download.append(((item.id, item.name, item.folder_id), category_path[1]))
             logger.info(f"Added item to download list: {item}")
 
             self.to_watch.pop(item.id)
