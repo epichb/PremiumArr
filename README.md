@@ -83,9 +83,11 @@ Feel free to submit issues or pull requests for improvements or bug fixes.
   - [ ] Maybe fake the NZBGet API to be easy integrated in Sonarr, Radarr, Lidarr, ...
 - [ ] Maybe add a WebUI to see the status
 - [ ] Remove Lists and use solely the DB (where it fits)
+- [ ] Refactor the code to have functions for state transitions (-> back to found state if fail in ... state)
 - [ ] Think about a state machine for the Downloads so the next step per download is clear (and fallbacks in state are easy to implement)
 - [ ] Add a way to pause downloads
 - [ ] Add a Scheduler to download files at a specific time
+- [ ] Dedicated thread for Downloading
 
 ## Latest Changes
 - [X] Add real logging (with levels) (currently only print statements)
