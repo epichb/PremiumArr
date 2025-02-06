@@ -62,7 +62,7 @@ services:
 | PREMIUMIZE_CLOUD_ROOT_DIR_NAME | The name of the root directory in the Premiumize Cloud                                                          | premiumarr    | No       |
 | MAX_RETRY_COUNT                | The maximum number of retries for a download (That errored in the premiumize downloader)                        | 6             | No       |
 | MAX_CLOUD_DL_MOVE_RETRY_COUNT  | The maximum number of retries for a download (That got stuck on 'Moving to cloud' in the premiumize downloader) | 3             | No       |
-
+| MAX_STATE_RETRY_COUNT          | The maximum number of retries for a download (That errored in some way in the state machine)                    | 3             | No       |
 
 ## To build the docker image locally
 

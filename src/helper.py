@@ -1,10 +1,17 @@
 import logging
+from tenacity import RetryError
 
 logging.basicConfig(level=logging.INFO)
 
 
 def get_logger(name):
     return logging.getLogger(name)
+
+
+class StateRetryError(RetryError):
+    """does the exact same thing as RetryError, but is a different class, to show that the state had an error"""
+
+    pass
 
 
 class RetryHandler:

@@ -2,10 +2,11 @@ import os
 import shutil
 from time import sleep
 from datetime import datetime, timedelta, UTC
-from tenacity import retry, stop_after_attempt as tries, wait_exponential as w_exp
+from tenacity import RetryError, retry, stop_after_attempt as tries, wait_exponential as w_exp
 from src.downloader import Downloader
 from src.premiumize_api import PremiumizeAPI
 from src.helper import RetryHandler, get_logger
+from src.file_manager import FileManager
 from src.db import Database
 
 logger = get_logger(__name__)
@@ -24,6 +25,7 @@ class Manager:
         self.pm = PremiumizeAPI(api_key)
         self.dl = Downloader(self.dl_path, dl_threads, dl_speed)
         self.db = Database(self.config_path)
+        self.fm = FileManager(self.db)
 
         self.test_basic_api_connection()
 
@@ -96,13 +98,18 @@ class Manager:
             category = category[1:] if category.startswith("/") else category  # normalize category path
 
             logger.info(f"Moving files to done folder for {d_name} ...")
-            os.makedirs(f"{self.done_path}/{category}", exist_ok=True)
-            shutil.move(f"{self.dl_path}/{d_name}", f"{self.done_path}/{category}/{d_name}")
-            shutil.move(nzb_full_path, f"{self.config_path}/archive/{d_name}")  # move the nzb to archive
-
-            self.db.cursor.execute("UPDATE data SET state = 'done' WHERE id = ?", (d_id,))
-            self.db.conn.commit()
-            logger.info(f"COMPLETED {d_name}")
+            try:
+                src, dst = f"{self.dl_path}/{d_name}", f"{self.done_path}/{category}/{d_name}"
+                self.fm.move_and_integrate(src, dst, d_id)
+                self.db.cursor.execute("UPDATE data SET state = 'done' WHERE id = ?", (d_id,))
+                self.db.conn.commit()
+                logger.info(f"COMPLETED {d_name}")
+            except Exception as e:
+                self.restore_state()  # state could be updated on error case
+                raise e  # reraise the exception to retry this move step
+            
+            # if the nzb file can't be moved we don't want to retry the whole process...
+            self.fm.move_and_integrate(nzb_full_path, f"{self.config_path}/archive/{d_name}")  # the nzb file
 
     @retry(stop=tries(3), wait=w_exp(2, min=5, max=45), retry_error_callback=rh.on_fail, before_sleep=rh.on_retry)
     def cleanup_online_files(self):
@@ -110,7 +117,11 @@ class Manager:
         for item in self.db.cursor.execute(q).fetchall():
             d_id, dl_id, d_name = item
             logger.info(f"Removing files from premiumize cloud for {d_name} ...")
-            self.pm.delete_transfer(dl_id)
+            try:
+                self.pm.delete_transfer(dl_id)
+            except RetryError as e:
+                logger.error(f"Failed to delete transfer: {e}\n  Assuming it was already deleted ...")
+
             self.db.cursor.execute("UPDATE data SET state = 'downloaded and online cleaned up' WHERE id = ?", (d_id,))
             self.db.conn.commit()
 
@@ -251,12 +262,12 @@ class Manager:
         # Print the status of the transfers that are still in progress
         for item in filtered_waiting:
             # get item infos:
-            q = "SELECT cld_dl_timeout_time, cld_dl_move_retry_c, full_path, category_path FROM data WHERE dl_id = ?"
-            c_dc_timeout_time, cld_dl_move_retry_c, full_pth, cat_pth = self.db.cursor.execute(q, (item.id,)).fetchone()
+            q = "SELECT id, cld_dl_timeout_time, cld_dl_move_retry_c, full_path, category_path FROM data WHERE dl_id = ?"
+            d_id, c_dc_timeout_time, cld_dl_move_retry_c, full_pth, cat_pth = self.db.cursor.execute(
+                q, (item.id,)
+            ).fetchone()
 
             c_dc_timeout_time = datetime.strptime(c_dc_timeout_time, "%Y-%m-%d %H:%M:%S.%f+00:00").replace(tzinfo=UTC)
-            # to also set tzinfo=UTC:
-            # c_dc_timeout_time = datetime.strptime(c_dc_timeout_time, "%Y-%m-%d %H:%M:%S.%f+00:00").replace(tzinfo=UTC)
 
             # Q: Can a cloud dl get stuck in states other than "Moving to cloud"? Maybe we wait for it to happen...
             if datetime.now(UTC) > c_dc_timeout_time:
@@ -274,9 +285,9 @@ class Manager:
                 # reset the state so it will be uploaded again but increase the retry count
                 q = (
                     "UPDATE data SET state = 'found', cld_dl_move_retry_c = cld_dl_move_retry_c + 1, dl_id = NULL,"
-                    + " dl_retry_count = 0, dl_folder_id = NULL, cld_dl_timeout_time = NULL WHERE dl_id = ?"
+                    + " dl_retry_count = 0, dl_folder_id = NULL, cld_dl_timeout_time = NULL WHERE id = ?"
                 )
-                self.db.cursor.execute(q, (item.id,))  # TEST ME
+                self.db.cursor.execute(q, (d_id,))
                 self.db.conn.commit()
                 self.to_watch.pop(item.id)  # remove the transfer from the watch list
                 self.to_premiumize.append((full_pth, cat_pth))  # add it to the DL list again
@@ -287,15 +298,15 @@ class Manager:
             logger.info(f'  name:"{item.name}", msg: "{item.message}"')
 
         for transfer_id in somehow_lost_ids:
-            q = "SELECT nzb_name, full_path, category_path FROM data WHERE dl_id = ?"
-            name, full_path, category_path = self.db.cursor.execute(q, (transfer_id,)).fetchone()
+            q = "SELECT id, nzb_name, full_path, category_path FROM data WHERE dl_id = ?"
+            d_id, name, full_path, category_path = self.db.cursor.execute(q, (transfer_id,)).fetchone()
 
             logger.error(f"Transfer LOST: {name} was lost! Increasing retry count ...")
             q = (
                 "UPDATE data SET state = 'found', cld_dl_move_retry_c = cld_dl_move_retry_c + 1, dl_id = NULL,"
-                + " dl_retry_count = 0, dl_folder_id = NULL, cld_dl_timeout_time = NULL WHERE dl_id = ?"
+                + " dl_retry_count = 0, dl_folder_id = NULL, cld_dl_timeout_time = NULL WHERE id = ?"
             )
-            self.db.cursor.execute(q, (transfer_id,))  # TEST ME
+            self.db.cursor.execute(q, (d_id,))
             self.db.conn.commit()
             self.to_watch.pop(transfer_id)  # remove the transfer from the watch list
             self.to_premiumize.append((full_path, category_path))
