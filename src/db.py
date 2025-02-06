@@ -31,6 +31,7 @@ class Database:
             nzb_name TEXT NOT NULL,
             cld_dl_timeout_time TIMESTAMP,
             cld_dl_move_retry_c INTEGER DEFAULT 0,
+            state_retry_count INTEGER DEFAULT 0,
             full_path TEXT NOT NULL
         )
         """)  # fmt: on
