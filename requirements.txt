@@ -1,3 +1,4 @@
 pySmartDL
 requests
 tenacity
+flask

@@ -7,19 +7,22 @@ logger = get_logger(__name__)
 
 class Database:
     def __init__(self, config_path: str):
-        # Create database file does not exist
         path = f"{config_path}/data.db"
         if not os.path.exists(path):
             logger.info(f"Database file does not exist, creating: {path}")
             open(path, "w", encoding="utf-8").close()
 
-        self.conn = sqlite3.connect(path)
-        self.cursor = self.conn.cursor()
+        self.conn = sqlite3.connect(path, check_same_thread=False)
+        self.cursor = self.conn.cursor()  # for the main process
+        logger.info(f"Connected to database with sqlite thread safety: {sqlite3.threadsafety}")
+        self.conn.row_factory = sqlite3.Row  # Enable named column access
+        self._create_tables()
 
+    def _create_tables(self):
         logger.info("Create tables if not exists...")
-
-        # fmt: off
-        self.cursor.execute("""
+        cursor = self.conn.cursor()
+        cursor.execute(
+            """
         CREATE TABLE IF NOT EXISTS data (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             state TEXT NOT NULL,
@@ -34,7 +37,32 @@ class Database:
             state_retry_count INTEGER DEFAULT 0,
             full_path TEXT NOT NULL
         )
-        """)  # fmt: on
+        """
+        )
+        cursor.close()
+
+    def get_current_state(self):
+        logger.debug("Fetching current state from database")
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "SELECT id, state, created_at, category_path, nzb_name, full_path "
+            + "FROM data WHERE state NOT IN ('done', 'failed') ORDER BY id DESC"
+        )
+        rows = cursor.fetchall()
+        cursor.close()
+        return [dict(row) for row in rows]
+
+    def get_done_failed_entries(self, limit=10, offset=0):
+        logger.debug(f"Fetching done/failed entries from database with limit={limit} and offset={offset}")
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "SELECT id, state, created_at, category_path, nzb_name, full_path "
+            + "FROM data WHERE state IN ('done', 'failed') ORDER BY id DESC LIMIT ? OFFSET ?",
+            (limit, offset),
+        )
+        rows = cursor.fetchall()
+        cursor.close()
+        return [dict(row) for row in rows]
 
 
 # States:

@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PremiumArr Web View</title>
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid black;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+<body>
+    <h1>Current State</h1>
+    <table id="current-state-table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>State</th>
+                <th>Created At</th>
+                <th>Category Path</th>
+                <th>NZB Name</th>
+                <th>Full Path</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+
+    <h1>Done/Failed Entries</h1>
+    <table id="done-failed-table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>State</th>
+                <th>Created At</th>
+                <th>Category Path</th>
+                <th>NZB Name</th>
+                <th>Full Path</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+    <button id="load-more">Load More</button>
+
+    <script>
+        async function fetchData(url) {
+            const response = await fetch(url);
+            return response.json();
+        }
+
+        function populateTable(tableId, data) {
+            const tableBody = document.getElementById(tableId).querySelector('tbody');
+            data.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${row.id}</td>
+                    <td>${row.state}</td>
+                    <td>${row.created_at}</td>
+                    <td>${row.category_path}</td>
+                    <td>${row.nzb_name}</td>
+                    <td>${row.full_path}</td>
+                `;
+                tableBody.appendChild(tr);
+            });
+        }
+
+        async function loadCurrentState() {
+            const data = await fetchData('/api/current_state');
+            populateTable('current-state-table', data);
+        }
+
+        let offset = 0;
+        const limit = 10;
+
+        async function loadDoneFailed() {
+            const data = await fetchData(`/api/done_failed?limit=${limit}&offset=${offset}`);
+            populateTable('done-failed-table', data);
+            offset += limit;
+        }
+
+        document.getElementById('load-more').addEventListener('click', loadDoneFailed);
+
+        loadCurrentState();
+        loadDoneFailed();
+    </script>
+</body>
+</html>

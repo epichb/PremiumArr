@@ -46,6 +46,10 @@ services:
       - /path/to/config:/config # The config folder for the app to persist the state
 ```
 
+## Web View
+
+A web view is available to show the current state of the database. It displays all entries with a working state and some of the entries with 'done' or 'failed' state, with pagination support for more entries.
+It's available at PORT 5000.
 
 ## Environment Variables
 

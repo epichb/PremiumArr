@@ -19,6 +19,7 @@
         "PUID",
         "pycache",
         "Radarr",
-        "sonarr"
+        "sonarr",
+        "threadsafety"
     ]
 }
