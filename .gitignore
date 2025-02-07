@@ -4,3 +4,5 @@ __pycache__/
 mounts/
 docker-compose.yml
 .local*/
+.env
+dirs/
