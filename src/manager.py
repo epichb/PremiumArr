@@ -224,11 +224,14 @@ class Manager:
         for item in filtered_finished:
             category_path = self.to_watch[item.id][1]
 
-            q = "UPDATE data SET state = 'in premiumize cloud', dl_folder_id = ? WHERE dl_id = ?"
-            self.db.cursor.execute(q, (item.folder_id, item.id))
+            self.db.cursor.execute("SELECT id FROM data WHERE dl_id = ?", (item.id,))  # I much rather use the id 
+            d_id = self.db.cursor.fetchone()[0]
+
+            q = "UPDATE data SET state = 'in premiumize cloud', dl_folder_id = ? WHERE id = ?"
+            self.db.cursor.execute(q, (item.folder_id, d_id))
             self.db.conn.commit()
 
-            self.to_download.append(((item.id, item.name, item.folder_id), category_path[1]))
+            self.to_download.append(((d_id, item.name, item.folder_id), category_path[1]))
             logger.info(f"Added item to download list: {item}")
 
             self.to_watch.pop(item.id)
