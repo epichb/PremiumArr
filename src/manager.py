@@ -7,7 +7,7 @@ from src.downloader import Downloader
 from src.premiumize_api import PremiumizeAPI
 from src.helper import RetryHandler, get_logger
 from src.file_manager import FileManager
-from src.db import Database
+from src.db import Database, time_fmt
 
 logger = get_logger(__name__)
 rh = RetryHandler(logger)
@@ -270,7 +270,6 @@ class Manager:
                 q, (item.id,)
             ).fetchone()
 
-            time_fmt = "%Y-%m-%d %H:%M:%S.%f+00:00"
             c_dc_timeout_time = datetime.strptime(c_dc_timeout_time, time_fmt).replace(tzinfo=timezone.utc)
 
             # Q: Can a cloud dl get stuck in states other than "Moving to cloud"? Maybe we wait for it to happen...

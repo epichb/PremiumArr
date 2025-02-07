@@ -1,18 +1,21 @@
+from datetime import datetime, timezone
 import sqlite3
 import os
 from src.helper import get_logger
 
 logger = get_logger(__name__)
+time_fmt = "%Y-%m-%d %H:%M:%S.%f+00:00"
 
 
 class Database:
-    def __init__(self, config_path: str):
-        path = f"{config_path}/data.db"
-        if not os.path.exists(path):
-            logger.info(f"Database file does not exist, creating: {path}")
-            open(path, "w", encoding="utf-8").close()
 
-        self.conn = sqlite3.connect(path, check_same_thread=False)
+    def __init__(self, config_path: str):
+        self.path = f"{config_path}/data.db"
+        if not os.path.exists(self.path):
+            logger.info(f"Database file does not exist, creating: {self.path}")
+            open(self.path, "w", encoding="utf-8").close()
+
+        self.conn = sqlite3.connect(self.path, check_same_thread=False)
         self.cursor = self.conn.cursor()  # for the main process
         safety_values = {
             1: "Single-Thread, all mutexes are disabled -> Unsafe for multithreading",
@@ -70,12 +73,62 @@ class Database:
         cursor.close()
         return [dict(row) for row in rows]
 
+    def get_total_entries_count(self):
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM data")
+        count = cursor.fetchone()[0]
+        cursor.close()
+        return count
 
-# States:
-# found: nzb file found in blackhole (will be uploaded to premiumize cloud)
-# uploaded: nzb uploaded to premiumize cloud (waiting for the premiumize cloud to download it)
-# in premiumize cloud: nzb is in premiumize cloud (will be downloaded to local)
-# downloaded: nzb downloaded to local (will clean up the premiumize cloud next)
-# downloaded and online cleaned up: premiumize cloud cleaned up (nzb file will be moved to done)
-# done: nzb moved to done (nzb file will be deleted)
-# failed: nzb failed to download (nzb file will be deleted / Cloud cleaned up and Sonar will be notified)
+    def get_done_entries_count(self):
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM data WHERE state = 'done'")
+        count = cursor.fetchone()[0]
+        cursor.close()
+        return count
+
+    def get_failed_entries_count(self):
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM data WHERE state = 'failed'")
+        count = cursor.fetchone()[0]
+        cursor.close()
+        return count
+
+    def get_entries_count_by_state(self):
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT state, COUNT(*) FROM data GROUP BY state")
+        counts = {row["state"]: row["COUNT(*)"] for row in cursor.fetchall()}
+        cursor.close()
+        return counts
+
+    def get_retry_counts(self):
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "SELECT SUM(dl_retry_count) AS total_dl_retries, SUM(state_retry_count) AS total_state_retries FROM data"
+        )
+        row = cursor.fetchone()
+        retry_counts = {"download": row["total_dl_retries"], "state": row["total_state_retries"]}
+        cursor.close()
+        return retry_counts
+
+    def get_db_size_in_KB(self):
+        raw_size = os.path.getsize(self.path)
+        in_KB = raw_size / 1024
+        return in_KB
+
+    def get_last_added_timestamp(self):
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT MAX(created_at) AS last_added FROM data")
+        last_added = cursor.fetchone()["last_added"]
+        time_fmt = "%Y-%m-%d %H:%M:%S"
+        last_added = datetime.strptime(last_added, time_fmt).replace(tzinfo=timezone.utc) if last_added else None
+        cursor.close()
+        return last_added
+
+    def get_last_done_timestamp(self):
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT MAX(created_at) AS last_done FROM data WHERE state = 'done'")
+        last_done = cursor.fetchone()["last_done"]
+        last_done = datetime.strptime(last_done, time_fmt).replace(tzinfo=timezone.utc) if last_done else None
+        cursor.close()
+        return last_done

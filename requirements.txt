@@ -2,3 +2,4 @@ pySmartDL
 requests
 tenacity
 flask
+prometheus_client
