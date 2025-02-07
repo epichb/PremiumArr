@@ -51,6 +51,10 @@
     </table>
     <button id="load-more">Load More</button>
 
+    <h1>Latest Logs</h1>
+    <button id="refresh-logs">Refresh Logs</button>
+    <pre id="logs"></pre>
+
     <script>
         async function fetchData(url) {
             const response = await fetch(url);
@@ -87,10 +91,18 @@
             offset += limit;
         }
 
+        async function loadLogs() {
+            const data = await fetchData('/api/logs');
+            const logsElement = document.getElementById('logs');
+            logsElement.textContent = data.logs;
+        }
+
         document.getElementById('load-more').addEventListener('click', loadDoneFailed);
+        document.getElementById('refresh-logs').addEventListener('click', loadLogs);
 
         loadCurrentState();
         loadDoneFailed();
+        loadLogs();
     </script>
 </body>
 </html>

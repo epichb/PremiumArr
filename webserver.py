@@ -15,6 +15,8 @@ logger = logging.getLogger(__name__)
 
 db = Database(CONFIG_PATH)
 
+LOG_FILE_PATH = os.path.join(CONFIG_PATH, "log", "supervisord.log")
+
 
 @app.route("/")
 def index():
@@ -80,6 +82,23 @@ def metrics():
     except Exception as e:
         logger.error(f"Error generating metrics: {e}")
         return "Error generating metrics", 500
+
+
+@app.route("/api/logs")
+def get_logs():
+    try:
+        with open(LOG_FILE_PATH, "r") as log_file:
+            # read just the last 1000 lines so set the cursor to the end of the file
+            log_file.seek(0, os.SEEK_END)
+            # move the cursor back 10000 characters
+            log_file.seek(log_file.tell() - 50000, os.SEEK_SET)
+            logs = log_file.readlines()
+            # remove all non ASCII characters
+            logs = [line.encode("ascii", "ignore").decode() for line in logs]
+        return jsonify({"logs": "".join(reversed(logs))})
+    except Exception as e:
+        logger.error(f"Error fetching logs: {e}")
+        return jsonify({"error": "Error fetching logs"}), 500
 
 
 if __name__ == "__main__":
