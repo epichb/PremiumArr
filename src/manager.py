@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 from tenacity import RetryError, retry, stop_after_attempt as tries, wait_exponential as w_exp
 from src.downloader import Downloader
 from src.premiumize_api import PremiumizeAPI
-from src.helper import RetryHandler, get_logger
+from src.helper import RetryHandler, StateRetryError, get_logger
 from src.file_manager import FileManager
 from src.db import Database, time_fmt
 
@@ -125,26 +125,31 @@ class Manager:
             self.db.cursor.execute("UPDATE data SET state = 'downloaded and online cleaned up' WHERE id = ?", (d_id,))
             self.db.conn.commit()
 
-    @retry(stop=tries(5), wait=w_exp(2, min=5, max=45), retry_error_callback=rh.on_fail, before_sleep=rh.on_retry)
+    @retry(stop=tries(2), wait=w_exp(10, min=5, max=45), retry_error_callback=rh.on_fail, before_sleep=rh.on_retry)
     def download_files_from_premiumize(self):
         while self.to_download:
             (d_id, d_name, d_folder_id), category = self.to_download[0]
+            try:
+                category = category[1:] if category.startswith("/") else category  # normalize category path
+                links_and_paths: list[tuple[str, str]] = self.get_folder_as_download_links(d_folder_id, d_name)
+                for link, path, name in links_and_paths:
+                    self.dl.dest = f"{self.dl_path}/{path}"
+                    logger.info(f'Downloading: "{self.dl_path}/{path}/{name}" from {link[:40]}...')
+                    self.dl.download(url=link, name=name)
 
-            category = category[1:] if category.startswith("/") else category  # normalize category path
-            links_and_paths: list[tuple[str, str]] = self.get_folder_as_download_links(d_folder_id, d_name)
-            for link, path, name in links_and_paths:
-                self.dl.dest = f"{self.dl_path}/{path}"
-                logger.info(f'Downloading: "{self.dl_path}/{path}/{name}" from {link[:40]}...')
-                self.dl.download(url=link, name=name)
+                logger.info(f"Downloaded all files from {d_name} ...")
+                logger.info(f"Removing the transfer from premiumize cloud and downloader for {d_name} ...")
 
-            logger.info(f"Downloaded all files from {d_name} ...")
-            logger.info(f"Removing the transfer from premiumize cloud and downloader for {d_name} ...")
+                q = "UPDATE data SET state = 'downloaded' WHERE id = ?"
+            except StateRetryError as e:  # only on StateRetryError we degrade the state
+                logger.error(f"Failed to download files: {e}\n  degrading state to 'found'")
+                q = "UPDATE data SET state = 'found' WHERE id = ?"
 
-            self.db.cursor.execute("UPDATE data SET state = 'downloaded' WHERE id = ?", (d_id,))
+            self.db.cursor.execute(q, (d_id,))
             self.db.conn.commit()
             self.to_download.pop(0)
 
-    @retry(stop=tries(5), wait=w_exp(2, min=5, max=45), retry_error_callback=rh.on_fail, before_sleep=rh.on_retry)
+    @retry(stop=tries(3), wait=w_exp(2, min=5, max=20), retry_error_callback=rh.on_state_fail, before_sleep=rh.on_retry)
     def get_folder_as_download_links(self, f_id: str, path: str = "") -> list[tuple[str, str, str]]:
         ret = []
         folder = self.pm.list_folder(f_id)
@@ -162,7 +167,9 @@ class Manager:
     def check_folder_for_incoming_nzbs(self):
         for root, _, files in os.walk(self.blackhole_path):
             for file in files:
-                already_tracked = self.db.cursor.execute("SELECT * FROM data WHERE nzb_name = ?", (file,)).fetchone()
+                full_file_path = f"{root}/{file}"
+                q = "SELECT * FROM data WHERE full_path = ?"
+                already_tracked = self.db.cursor.execute(q, (full_file_path,)).fetchone()
 
                 if already_tracked:
                     continue
@@ -172,30 +179,41 @@ class Manager:
 
                     self.db.cursor.execute(
                         "INSERT INTO data (nzb_name, state, full_path, category_path) VALUES (?, ?, ?, ?)",
-                        (file, "found", f"{root}/{file}", category_path),
+                        (file, "found", full_file_path, category_path),
                     )
                     self.db.conn.commit()
 
-                    self.to_premiumize.append((f"{root}/{file}", category_path))
+                    self.to_premiumize.append((full_file_path, category_path))
                 else:
                     logger.info(f"Found non-NZB file: {file} - ignoring")
 
     @retry(stop=tries(3), wait=w_exp(min=2, max=30), retry_error_callback=rh.on_fail, before_sleep=rh.on_retry)
     def upload_nzbs_to_premiumize_downloader(self):
         while self.to_premiumize:
-            nzb_path, category_path = self.to_premiumize[0]
-            logger.info(f"Uploading NZB file: {nzb_path} ...")
+            try:
+                nzb_path, category_path = self.to_premiumize[0]
+                logger.info(f"Uploading NZB file: {nzb_path} ...")
 
-            dl_id = self.pm.upload_nzb(nzb_path, self.premiumarr_root_id)
-            cld_dl_timeout_time = datetime.now(timezone.utc) + timedelta(minutes=15)
-            # Theoretically a crash here would cause the nzb to be uploaded again, but that is not really a issue
-            q = "UPDATE data SET state = 'uploaded', dl_id = ?, cld_dl_timeout_time = ? WHERE full_path = ?"
-            self.db.cursor.execute(q, (dl_id, cld_dl_timeout_time, nzb_path))
-            self.db.conn.commit()
+                dl_id = self.pm.upload_nzb(nzb_path, self.premiumarr_root_id)
+                cld_dl_timeout_time = datetime.now(timezone.utc) + timedelta(minutes=15)
 
-            self.to_watch[dl_id] = [0, category_path]
-            self.to_premiumize.pop(0)
-            logger.info(f"Uploaded NZB file: {nzb_path}")
+                q = "UPDATE data SET state = 'uploaded', dl_id = ?, cld_dl_timeout_time = ? WHERE full_path = ?"
+                self.db.cursor.execute(q, (dl_id, cld_dl_timeout_time, nzb_path))
+                self.db.conn.commit()
+
+                self.to_watch[dl_id] = [0, category_path]
+                self.to_premiumize.pop(0)
+                logger.info(f"Uploaded NZB file: {nzb_path}")
+            except FileNotFoundError:  # this is a critical error, we can't recover from this
+                logger.error(f"File not found: {nzb_path}")
+                # if the file is gone we will never be able to upload it, but technically this should not doom the nzb
+                # file itself since if we had it we could try to process it ->
+                # TODO:  notify sonarr to request it again (without marking it as forbidden)
+                # for now we just mark it as failed
+                q = "UPDATE data SET state = 'failed' WHERE full_path = ?"
+                self.db.cursor.execute(q, (nzb_path,))
+                self.db.conn.commit()
+                self.to_premiumize.pop(0)
 
     @retry(stop=tries(3), wait=w_exp(min=2, max=30), retry_error_callback=rh.on_fail, before_sleep=rh.on_retry)
     def check_premiumize_downloader_state(self):
@@ -224,7 +242,7 @@ class Manager:
         for item in filtered_finished:
             category_path = self.to_watch[item.id][1]
 
-            self.db.cursor.execute("SELECT id FROM data WHERE dl_id = ?", (item.id,))  # I much rather use the id 
+            self.db.cursor.execute("SELECT id FROM data WHERE dl_id = ?", (item.id,))  # I much rather use the id
             d_id = self.db.cursor.fetchone()[0]
 
             q = "UPDATE data SET state = 'in premiumize cloud', dl_folder_id = ? WHERE id = ?"

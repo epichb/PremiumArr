@@ -46,3 +46,11 @@ class RetryHandler:
             f"  RETRIES EXHAUSTED, NOT RETRYING"
         )
         raise retry_state.outcome.exception()
+    
+    def on_state_fail(self, retry_state):
+        self.logger.error(
+            f"FAILED! DEGRADE STATE, GOT EXCEPTION: {retry_state.outcome.exception()}\n"
+            f"  in {retry_state.fn.__name__} with {retry_state.args}\n"
+            f"  RETRIES EXHAUSTED, NOT RETRYING"
+        )
+        raise StateRetryError(retry_state.outcome.exception())
