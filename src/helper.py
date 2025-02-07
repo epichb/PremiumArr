@@ -1,11 +1,20 @@
 import logging
+import os
 from tenacity import RetryError
 
 logging.basicConfig(level=logging.INFO)
 
 
 def get_logger(name):
-    return logging.getLogger(name)
+    level = os.getenv("LOG_LEVEL", "INFO")
+    logger = logging.getLogger(name)
+    if not logger.hasHandlers():
+        handler = logging.StreamHandler()
+        formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+    logger.setLevel(level)
+    return logger
 
 
 class StateRetryError(RetryError):

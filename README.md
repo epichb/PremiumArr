@@ -67,6 +67,7 @@ It's available at PORT 5000.
 | MAX_RETRY_COUNT                | The maximum number of retries for a download (That errored in the premiumize downloader)                        | 6             | No       |
 | MAX_CLOUD_DL_MOVE_RETRY_COUNT  | The maximum number of retries for a download (That got stuck on 'Moving to cloud' in the premiumize downloader) | 3             | No       |
 | MAX_STATE_RETRY_COUNT          | The maximum number of retries for a download (That errored in some way in the state machine)                    | 3             | No       |
+| LOG_LEVEL                      | The log level for the application                                                                               | INFO          | No       |
 
 ## To build the docker image locally
 
@@ -97,3 +98,10 @@ Feel free to submit issues or pull requests for improvements or bug fixes.
 - [X] Add real logging (with levels) (currently only print statements)
 - [X] Monitor how long a DL is 'Moving to cloud' and retry if it takes too long (more than 15min)
 - [X] Find downloads that are 'somehow lost' e.g. the user removed them before they got downloaded it from the cloud downloader and again upload them do the web downloader
+
+## Why a state machine?
+What does every state have?
+ - Expected current state (e.g. 'Uploading')
+ - Actual current state (with checker functions)
+ - Expected next state (e.g. 'Moving to cloud')
+ - Expected fallback state (e.g. 'Uploading' if 'Moving to cloud' fails)
