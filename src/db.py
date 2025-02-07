@@ -14,7 +14,13 @@ class Database:
 
         self.conn = sqlite3.connect(path, check_same_thread=False)
         self.cursor = self.conn.cursor()  # for the main process
-        logger.info(f"Connected to database with sqlite thread safety: {sqlite3.threadsafety}")
+        safety_values = {
+            1: "Single-Thread, all mutexes are disabled -> Unsafe for multithreading",
+            2: "Multi-Thread, Connections must not be shared between threads",
+            3: "Serialized, Full thread safety -> API calls are serialized across threads",
+        }
+        thread_safety = safety_values.get(sqlite3.threadsafety, "Unknown")
+        logger.info(f"Connected to database with sqlite thread safety: {sqlite3.threadsafety}, means {thread_safety}")
         self.conn.row_factory = sqlite3.Row  # Enable named column access
         self._create_tables()
 

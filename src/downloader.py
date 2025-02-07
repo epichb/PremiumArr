@@ -18,7 +18,7 @@ class Downloader:
         self.db = db
 
     def on_fail(self, retry_state):
-        logger.error(f"TESTMSG: Download failed after {retry_state.attempt_number} attempts")
+        logger.error(f"DOWNLOAD FAILED: After {retry_state.attempt_number} attempts")
         rh.on_fail(retry_state)
 
     # TODO: this needs to raise an exception, or somehow mark the dl self as failed in the db - reraise not working?

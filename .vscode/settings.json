@@ -9,7 +9,11 @@
         "clearfinished",
         "directlink",
         "horotw",
+        "levelname",
         "Lidarr",
+        "logfile",
+        "loglevel",
+        "nodaemon",
         "nzbs",
         "PGID",
         "premiumarr",
@@ -20,6 +24,7 @@
         "pycache",
         "Radarr",
         "sonarr",
+        "supervisord",
         "threadsafety"
     ]
 }
