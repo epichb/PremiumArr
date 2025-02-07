@@ -1,8 +1,8 @@
 FROM python:3.9-slim
 
-# Install essential packages for creating users
+# Install essential packages for creating users and supervisor
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    passwd procps && \
+    passwd procps supervisor && \
     rm -rf /var/lib/apt/lists/*
 
 # Create a non-root user with UID/GID 1000
@@ -14,10 +14,14 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+COPY supervisord.conf .
+COPY templates/ ./templates
 COPY src/ ./src
+COPY webserver.py .
 COPY main.py .
+COPY start_supervisord.sh .
 
 RUN chown -R appuser:appgroup /app
 USER appuser
 
-CMD ["python", "-u", "main.py"]
+CMD ["./start_supervisord.sh"]
