@@ -205,7 +205,7 @@ class Manager:
                 self.to_premiumize.pop(0)
                 logger.info(f"Uploaded NZB file: {nzb_path}")
             except FileNotFoundError:  # this is a critical error, we can't recover from this
-                logger.error(f"File not found: {nzb_path}")
+                logger.error(f"PERMANENTLY FAILED: File was never found: {nzb_path}")
                 # if the file is gone we will never be able to upload it, but technically this should not doom the nzb
                 # file itself since if we had it we could try to process it ->
                 # TODO:  notify sonarr to request it again (without marking it as forbidden)

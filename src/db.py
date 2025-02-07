@@ -129,6 +129,7 @@ class Database:
         cursor = self.conn.cursor()
         cursor.execute("SELECT MAX(created_at) AS last_done FROM data WHERE state = 'done'")
         last_done = cursor.fetchone()["last_done"]
+        time_fmt = "%Y-%m-%d %H:%M:%S"
         last_done = datetime.strptime(last_done, time_fmt).replace(tzinfo=timezone.utc) if last_done else None
         cursor.close()
         return last_done
