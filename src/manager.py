@@ -1,7 +1,7 @@
 import os
 import shutil
 from time import sleep
-from datetime import datetime, timedelta, UTC
+from datetime import datetime, timedelta, timezone
 from tenacity import RetryError, retry, stop_after_attempt as tries, wait_exponential as w_exp
 from src.downloader import Downloader
 from src.premiumize_api import PremiumizeAPI
@@ -107,7 +107,7 @@ class Manager:
             except Exception as e:
                 self.restore_state()  # state could be updated on error case
                 raise e  # reraise the exception to retry this move step
-            
+
             # if the nzb file can't be moved we don't want to retry the whole process...
             self.fm.move_and_integrate(nzb_full_path, f"{self.config_path}/archive/{d_name}")  # the nzb file
 
@@ -187,7 +187,7 @@ class Manager:
             logger.info(f"Uploading NZB file: {nzb_path} ...")
 
             dl_id = self.pm.upload_nzb(nzb_path, self.premiumarr_root_id)
-            cld_dl_timeout_time = datetime.now(UTC) + timedelta(minutes=15)
+            cld_dl_timeout_time = datetime.now(timezone.utc) + timedelta(minutes=15)
             # Theoretically a crash here would cause the nzb to be uploaded again, but that is not really a issue
             q = "UPDATE data SET state = 'uploaded', dl_id = ?, cld_dl_timeout_time = ? WHERE full_path = ?"
             self.db.cursor.execute(q, (dl_id, cld_dl_timeout_time, nzb_path))
@@ -270,10 +270,11 @@ class Manager:
                 q, (item.id,)
             ).fetchone()
 
-            c_dc_timeout_time = datetime.strptime(c_dc_timeout_time, "%Y-%m-%d %H:%M:%S.%f+00:00").replace(tzinfo=UTC)
+            time_fmt = "%Y-%m-%d %H:%M:%S.%f+00:00"
+            c_dc_timeout_time = datetime.strptime(c_dc_timeout_time, time_fmt).replace(tzinfo=timezone.utc)
 
             # Q: Can a cloud dl get stuck in states other than "Moving to cloud"? Maybe we wait for it to happen...
-            if datetime.now(UTC) > c_dc_timeout_time:
+            if datetime.now(timezone.utc) > c_dc_timeout_time:
                 if item.message != "Moving to cloud":
                     logger.error(f"Transfer stuck: {item.name} at unexpected state '{item.message}' !PLS REPORT THAT!")
                     continue
