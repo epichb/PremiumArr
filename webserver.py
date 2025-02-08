@@ -7,7 +7,7 @@ from prometheus_client import generate_latest, CollectorRegistry, CONTENT_TYPE_L
 CONFIG_PATH = os.getenv("CONFIG_PATH", "/config")
 
 app = Flask(__name__)
-# app.config['DEBUG'] = True  # Enable Flask debugging
+app.config['DEBUG'] = False  # Flask debugging
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
@@ -88,14 +88,16 @@ def metrics():
 def get_logs():
     try:
         with open(LOG_FILE_PATH, "r") as log_file:
-            # read just the last 1000 lines so set the cursor to the end of the file
             log_file.seek(0, os.SEEK_END)
-            # move the cursor back 10000 characters
-            log_file.seek(log_file.tell() - 50000, os.SEEK_SET)
+            log_file.seek(log_file.tell() - 50000, os.SEEK_SET)  # move the cursor some characters  back
             logs = log_file.readlines()
-            # remove all non ASCII characters
-            logs = [line.encode("ascii", "ignore").decode() for line in logs]
-        return jsonify({"logs": "".join(reversed(logs))})
+            lines = [line.encode("ascii", "ignore").decode() for line in logs]  # remove all non ASCII characters
+            messages = [message for message in "".join(lines).split("\n\n") if message]
+            reversed_messages = messages[::-1]
+            reversed_messages = [message for message in reversed_messages if not "'webserver'" in message[0:50]]
+            as_str = "\n\n".join(reversed_messages)
+
+        return jsonify({"logs": as_str})
     except Exception as e:
         logger.error(f"Error fetching logs: {e}")
         return jsonify({"error": "Error fetching logs"}), 500
@@ -103,4 +105,8 @@ def get_logs():
 
 if __name__ == "__main__":
     # start Flask in a thread so it doesn't block the main process
-    app.run(host="0.0.0.0", port=5000, debug=False)
+    if app.config['DEBUG']:
+        app.run(host="0.0.0.0", port=5000, debug=True, use_reloader=True)
+    else:
+        app.run(host="0.0.0.0", port=5000, debug=False)
+

@@ -5,7 +5,40 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PremiumArr Web View</title>
     <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            margin: 0;
+            font-family: Arial, sans-serif;
+        }
+        h1 {
+            margin: 12px 0;
+            /* A little smaller */
+            font-size: 1.5em;
+        }
+        .container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            padding: 12px;
+        }
+        .state_info {
+            flex: 0.75;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .table-container {
+            /* flex: 1; */
+            min-height: 20%;
+            overflow: auto;
+            margin-bottom: 12px;
+        }
         table {
+            /* flex: 0.5; */
+            /* height: 50%; */
             width: 100%;
             border-collapse: collapse;
         }
@@ -13,47 +46,84 @@
             border: 1px solid black;
             padding: 8px;
             text-align: left;
+            font-size: 0.6em;
         }
         th {
             background-color: #f2f2f2;
+            font-size: 0.7em;
+        }
+        .log_info {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            min-height: 50%;
+        }
+        #logs {
+            /* flex: 1; */
+            overflow-y: scroll;
+            border: 1px solid black;
+            font-size: 0.7em;
+            padding: 8px;
+        }
+        button {
+            margin: 8px 0;
         }
     </style>
 </head>
 <body>
-    <h1>Current State</h1>
-    <table id="current-state-table">
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>State</th>
-                <th>Created At</th>
-                <th>Category Path</th>
-                <th>NZB Name</th>
-                <th>Full Path</th>
-            </tr>
-        </thead>
-        <tbody></tbody>
-    </table>
+    <div class="container">
+        <div class="state_info">
+            <h1>Current State</h1>
+            <div class="table-container">
+                <table id="current-state-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>State</th>
+                            <th>Created At</th>
+                            <th>Category Path</th>
+                            <th>NZB Name</th>
+                            <th>PREMIUMIZE DL ID</th>
+                            <th>DLRC</th>
+                            <th>CLD DL TIMEOUT TIME</th>
+                            <th>CDLMRC</th>
+                            <th>STRC</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
 
-    <h1>Done/Failed Entries</h1>
-    <table id="done-failed-table">
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>State</th>
-                <th>Created At</th>
-                <th>Category Path</th>
-                <th>NZB Name</th>
-                <th>Full Path</th>
-            </tr>
-        </thead>
-        <tbody></tbody>
-    </table>
-    <button id="load-more">Load More</button>
+            <h1>Done/Failed Entries</h1>
+            <div class="table-container">
+                <table id="done-failed-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>State</th>
+                            <th>Created At</th>
+                            <th>Category Path</th>
+                            <th>NZB Name</th>
+                            <th>PREMIUMIZE DL ID</th>
+                            <th>DLRC</th>
+                            <th>CLD DL TIMEOUT TIME</th>
+                            <th>CDLMRC</th>
+                            <th>STRC</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+            <button id="load-more">Show Older Entries</button>
+        </div>
 
-    <h1>Latest Logs</h1>
-    <button id="refresh-logs">Refresh Logs</button>
-    <pre id="logs"></pre>
+        <div class="log_info">
+            <h1>Latest Logs</h1>
+            <button id="refresh-logs">Refresh Logs</button>
+            <pre id="logs"></pre>
+        </div>
+    </div>
 
     <script>
         async function fetchData(url) {
@@ -63,6 +133,7 @@
 
         function populateTable(tableId, data) {
             const tableBody = document.getElementById(tableId).querySelector('tbody');
+            tableBody.innerHTML = ''; // Clear existing rows
             data.forEach(row => {
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
@@ -71,7 +142,11 @@
                     <td>${row.created_at}</td>
                     <td>${row.category_path}</td>
                     <td>${row.nzb_name}</td>
-                    <td>${row.full_path}</td>
+                    <td>${row.dl_id}</td>
+                    <td>${row.dl_retry_count}</td>
+                    <td>${row.cld_dl_timeout_time}</td>
+                    <td>${row.cld_dl_move_retry_c}</td>
+                    <td>${row.state_retry_count}</td>
                 `;
                 tableBody.appendChild(tr);
             });
