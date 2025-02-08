@@ -1,10 +1,9 @@
-from datetime import datetime, timezone
 import sqlite3
 import os
 from src.helper import get_logger
 
 logger = get_logger(__name__)
-time_fmt = "%Y-%m-%d %H:%M:%S.%f+00:00"
+time_fmt = "%Y-%m-%d %H:%M:%S"
 
 
 class Database:
@@ -44,7 +43,8 @@ class Database:
             cld_dl_timeout_time TIMESTAMP,
             cld_dl_move_retry_c INTEGER DEFAULT 0,
             state_retry_count INTEGER DEFAULT 0,
-            full_path TEXT NOT NULL
+            full_path TEXT NOT NULL,
+            done_at TIMESTAMP,
         )
         """
         )
@@ -122,16 +122,14 @@ class Database:
         cursor = self.conn.cursor()
         cursor.execute("SELECT MAX(created_at) AS last_added FROM data")
         last_added = cursor.fetchone()["last_added"]
-        time_fmt = "%Y-%m-%d %H:%M:%S"
-        last_added = datetime.strptime(last_added, time_fmt).replace(tzinfo=timezone.utc) if last_added else None
+        last_added = last_added if last_added else None
         cursor.close()
         return last_added
 
     def get_last_done_timestamp(self):
         cursor = self.conn.cursor()
-        cursor.execute("SELECT MAX(created_at) AS last_done FROM data WHERE state = 'done'")
+        cursor.execute("SELECT MAX(done_at) AS last_done FROM data WHERE state = 'done'")
         last_done = cursor.fetchone()["last_done"]
-        time_fmt = "%Y-%m-%d %H:%M:%S"
-        last_done = datetime.strptime(last_done, time_fmt).replace(tzinfo=timezone.utc) if last_done else None
+        last_done = last_done if last_done else None
         cursor.close()
         return last_done

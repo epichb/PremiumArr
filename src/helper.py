@@ -1,6 +1,7 @@
 import logging
 import os
 from tenacity import RetryError
+from datetime import datetime, UTC, timedelta
 
 logging.basicConfig(level=logging.INFO)
 
@@ -15,6 +16,37 @@ def get_logger(name):
         logger.addHandler(handler)
     logger.setLevel(level)
     return logger
+
+
+class UTCDateTime:
+    """Always handles the datetime in UTC and applies the same formatting to all dt objects"""
+
+    _time_fmt = "%Y-%m-%d %H:%M:%S"
+
+    def __init__(self, datetime=datetime.now(UTC), offset=timedelta(hours=0), from_str=None):
+        if from_str:
+            self.datetime = datetime.strptime(from_str, self._time_fmt)
+        else:
+            self.datetime = datetime
+        self.datetime += offset
+
+    def __str__(self):
+        return self.datetime.strftime(self._time_fmt)
+
+    def str(self):
+        return self.__str__()
+
+    def parse_from_str(self, dt_str):
+        self.datetime = datetime.strptime(dt_str, self._time_fmt)
+
+    def __repr__(self):
+        return self.__str__()
+
+    def __eq__(self, other):
+        return self.datetime == other.datetime
+
+    def __lt__(self, other):
+        return self.datetime < other.datetime
 
 
 class StateRetryError(RetryError):
@@ -46,7 +78,7 @@ class RetryHandler:
             f"  RETRIES EXHAUSTED, NOT RETRYING"
         )
         raise retry_state.outcome.exception()
-    
+
     def on_state_fail(self, retry_state):
         self.logger.error(
             f"FAILED! DEGRADE STATE, GOT EXCEPTION: {retry_state.outcome.exception()}\n"

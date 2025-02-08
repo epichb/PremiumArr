@@ -7,7 +7,7 @@ from prometheus_client import generate_latest, CollectorRegistry, CONTENT_TYPE_L
 CONFIG_PATH = os.getenv("CONFIG_PATH", "/config")
 
 app = Flask(__name__)
-app.config['DEBUG'] = False  # Flask debugging
+app.config["DEBUG"] = False  # Flask debugging
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG)
@@ -61,8 +61,8 @@ def metrics():
         entries_by_state = Gauge("entries_by_state", "Number of entries by state", ["state"], registry=registry)
         retry_counts = Gauge("retry_counts", "Number of retries for operations", ["operation"], registry=registry)
         db_size_in_KB = Gauge("db_size_in_KB", "Size of the database file in KB", registry=registry)
-        last_added = Info("last_added", "Timestamp of the last added entry", registry=registry)
-        last_done = Info("last_done", "Timestamp of the last done entry", registry=registry)
+        last_added_UTC = Info("last_added_UTC", "Timestamp of the last added entry", registry=registry)
+        last_done_UTC = Info("last_done_UTC", "Timestamp of the last done entry", registry=registry)
 
         total_entries.set(db.get_total_entries_count())
         done_entries.set(db.get_done_entries_count())
@@ -74,8 +74,8 @@ def metrics():
         for operation, count in db.get_retry_counts().items():
             retry_counts.labels(operation=operation).set(count)
         db_size_in_KB.set(db.get_db_size_in_KB())
-        last_added.info({"timestamp": str(db.get_last_added_timestamp())})
-        last_done.info({"timestamp": str(db.get_last_done_timestamp())})
+        last_added_UTC.info({"timestamp": db.get_last_added_timestamp()})
+        last_done_UTC.info({"timestamp": db.get_last_done_timestamp()})
 
         data = generate_latest(registry)
         return data, 200, {"Content-Type": CONTENT_TYPE_LATEST}
@@ -104,9 +104,7 @@ def get_logs():
 
 
 if __name__ == "__main__":
-    # start Flask in a thread so it doesn't block the main process
-    if app.config['DEBUG']:
+    if app.config["DEBUG"]:
         app.run(host="0.0.0.0", port=5000, debug=True, use_reloader=True)
     else:
         app.run(host="0.0.0.0", port=5000, debug=False)
-

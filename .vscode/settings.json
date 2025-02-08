@@ -7,8 +7,10 @@
         "BLACKHOLE",
         "buildx",
         "clearfinished",
+        "Cust",
         "directlink",
         "horotw",
+        "jsonify",
         "levelname",
         "Lidarr",
         "logfile",
@@ -24,6 +26,7 @@
         "PUID",
         "pycache",
         "Radarr",
+        "smth",
         "sonarr",
         "supervisord",
         "threadsafety"

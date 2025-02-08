@@ -1,13 +1,13 @@
 import os
 import shutil
 from time import sleep
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from tenacity import RetryError, retry, stop_after_attempt as tries, wait_exponential as w_exp
 from src.downloader import Downloader
 from src.premiumize_api import PremiumizeAPI
-from src.helper import RetryHandler, StateRetryError, get_logger
+from src.helper import UTCDateTime, RetryHandler, StateRetryError, get_logger
 from src.file_manager import FileManager
-from src.db import Database, time_fmt
+from src.db import Database
 
 logger = get_logger(__name__)
 rh = RetryHandler(logger)
@@ -101,7 +101,8 @@ class Manager:
             try:
                 src, dst = f"{self.dl_path}/{d_name}", f"{self.done_path}/{category}/{d_name}"
                 self.fm.move_and_integrate(src, dst, d_id)
-                self.db.cursor.execute("UPDATE data SET state = 'done' WHERE id = ?", (d_id,))
+                done_at = UTCDateTime().str()
+                self.db.cursor.execute("UPDATE data SET state = 'done', done_at = ? WHERE id = ?", (done_at, d_id))
                 self.db.conn.commit()
                 logger.info(f"COMPLETED {d_name}")
             except Exception as e:
@@ -195,7 +196,7 @@ class Manager:
                 logger.info(f"Uploading NZB file: {nzb_path} ...")
 
                 dl_id = self.pm.upload_nzb(nzb_path, self.premiumarr_root_id)
-                cld_dl_timeout_time = datetime.now(timezone.utc) + timedelta(minutes=15)
+                cld_dl_timeout_time = UTCDateTime(offset=timedelta(minutes=25)).str()
 
                 q = "UPDATE data SET state = 'uploaded', dl_id = ?, cld_dl_timeout_time = ? WHERE full_path = ?"
                 self.db.cursor.execute(q, (dl_id, cld_dl_timeout_time, nzb_path))
