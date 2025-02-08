@@ -87,13 +87,15 @@ def get_logs():
         LOG_FILE_PATH = os.path.join(CONFIG_PATH, "log", "for_webviewer.log")
         with open(LOG_FILE_PATH, "r") as log_file:
             log_file.seek(0, os.SEEK_END)
-            log_file.seek(log_file.tell() - 50000, os.SEEK_SET)  # move the cursor some characters  back
+
+            if log_file.tell() < 50000:
+                log_file.seek(0, os.SEEK_SET)
+            else:
+                log_file.seek(-50000, os.SEEK_END)
+
             logs = log_file.readlines()
             lines = [line.encode("ascii", "ignore").decode() for line in logs]  # remove all non ASCII characters
-            messages = [message for message in "".join(lines).split("\n\n") if message]
-            reversed_messages = messages[::-1]
-            reversed_messages = [message for message in reversed_messages if not "'webserver'" in message[0:50]]
-            as_str = "\n\n".join(reversed_messages)
+            as_str = "".join(reversed(lines))
 
         return jsonify({"logs": as_str})
     except Exception as e:
