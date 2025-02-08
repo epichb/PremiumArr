@@ -45,6 +45,7 @@ class Database:
             state_retry_count INTEGER DEFAULT 0,
             full_path TEXT NOT NULL,
             done_at TIMESTAMP,
+            message TEXT
         )
         """
         )
@@ -54,7 +55,7 @@ class Database:
         logger.debug("Fetching current state from database")
         cursor = self.conn.cursor()
         cursor.execute(
-            "SELECT id, state, created_at, category_path, SUBSTR(nzb_name,1,87) || '...' AS nzb_name, "
+            "SELECT id, state, message, created_at, category_path, SUBSTR(nzb_name,1,87) || '...' AS nzb_name, "
             + "dl_id, dl_retry_count, cld_dl_timeout_time, cld_dl_move_retry_c, state_retry_count "
             + "FROM data WHERE state NOT IN ('done', 'failed') ORDER BY id DESC"
         )
@@ -66,7 +67,7 @@ class Database:
         logger.debug(f"Fetching done/failed entries from database with limit={limit} and offset={offset}")
         cursor = self.conn.cursor()
         cursor.execute(
-            "SELECT id, state, created_at, category_path, SUBSTR(nzb_name,1,87) || '...' AS nzb_name, "
+            "SELECT id, state, message, created_at, category_path, SUBSTR(nzb_name,1,87) || '...' AS nzb_name, "
             + "dl_id, dl_retry_count, cld_dl_timeout_time, cld_dl_move_retry_c, state_retry_count "
             + "FROM data WHERE state IN ('done', 'failed') ORDER BY id DESC LIMIT ? OFFSET ?",
             (limit, offset),
