@@ -43,12 +43,7 @@ class FileManager:
                 raise StateRetryError(f"State retry count exceeded for {name}")
 
             logger.error(f"New state_retry_count is now {rt_count}/{MAX_STATE_RETRY_COUNT} - complete retrying...")
-            q = (
-                "UPDATE data SET state = 'found', cld_dl_move_retry_c = cld_dl_move_retry_c + 1, dl_id = NULL,"
-                + " dl_retry_count = 0, dl_folder_id = NULL, cld_dl_timeout_time = NULL WHERE id = ?"
-            )
-            self.db.cursor.execute(q, (id_for_retry,))
-            self.db.conn.commit()
+            self.db.reset_to_found(id_for_retry, state_retry_count_add=1)
             raise StateRetryError(f"Failed to move and integrate {source} into {dest}: {e}")
 
     @retry(stop=tries(2), wait=w_exp(2), retry_error_callback=rh.on_fail, before_sleep=rh.on_retry)
