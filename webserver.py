@@ -2,7 +2,7 @@ import os
 import logging
 from flask import Flask, jsonify, request, render_template
 from src.db import Database
-from src.sabnzbd_api import handle_sabnzbd_command
+from src.sabnzbd_api import SabnzbdApi
 
 CONFIG_PATH = os.getenv("CONFIG_PATH", "/config")
 
@@ -15,6 +15,8 @@ logger = logging.getLogger(__name__)
 
 db = Database(CONFIG_PATH)
 
+sabnzbd = SabnzbdApi()
+
 
 @app.route("/")
 def index():
@@ -26,11 +28,34 @@ def index():
     return res
 
 
-@app.route("/api")
+@app.route("/api", methods=["GET"])
 def api():
     if request.args.get("mode"):
-        return handle_sabnzbd_command(request.args.get("mode"))
+        mode = request.args.get("mode")
+        if mode == "version":
+            return sabnzbd.get_version()
+        if mode == "get_config":
+            return sabnzbd.get_config()
+        if mode == "queue":
+            return sabnzbd.get_queue()
+        if mode == "history":
+            return sabnzbd.get_history()
+        return {"error": "Invalid mode"}
     return jsonify({"error": "No mode specified"})
+
+
+@app.route("/api", methods=["POST"])
+def api_post():
+    # Handle the mode "addfile" here
+    # We expect a multipart/form-data request with a file
+    # The field containing the file should be named "name" of "nzbfile"
+    if request.args.get("mode") == "addfile":
+        data = request.files.get("nzbfile")
+        if not data:
+            data = request.files.get("name")
+        if data:
+            return sabnzbd.add_file(data)
+        return {"error": "No file provided"}
 
 
 @app.route("/api/current_state")
