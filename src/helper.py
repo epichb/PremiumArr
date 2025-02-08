@@ -1,19 +1,30 @@
 import logging
 import os
+import time as for_logger_time
 from tenacity import RetryError
 from datetime import datetime, UTC, timedelta
 
+CONFIG_PATH = os.getenv("CONFIG_PATH", "/config")
 logging.basicConfig(level=logging.INFO)
 
 
 def get_logger(name):
     level = os.getenv("LOG_LEVEL", "INFO")
     logger = logging.getLogger(name)
-    if not logger.hasHandlers():
-        handler = logging.StreamHandler()
+    if not logger.hasHandlers() or logger.handlers == []:
         formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+        formatter.converter = for_logger_time.gmtime  # get time in UTC
+        formatter.default_time_format = "UTC: %Y-%m-%d %H:%M:%S"
+
+        handler = logging.StreamHandler()
         handler.setFormatter(formatter)
         logger.addHandler(handler)
+
+        os.makedirs(f"{CONFIG_PATH}/log", exist_ok=True)
+        file_handler = logging.FileHandler(f"{CONFIG_PATH}/log/for_webviewer.log")
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+
     logger.setLevel(level)
     return logger
 
