@@ -133,3 +133,34 @@ class Database:
         last_done = last_done if last_done else None
         cursor.close()
         return last_done
+
+    def reset_to_found(self, d_id, cld_dl_move_retry_c_add=0, state_retry_count_add=0):
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "UPDATE data SET state = 'found', cld_dl_move_retry_c = cld_dl_move_retry_c + ?, dl_id = NULL,"
+            + " state_retry_count = state_retry_count + ?, dl_retry_count = 0, dl_folder_id = NULL,"
+            + " cld_dl_timeout_time = NULL, message = NULL WHERE id = ?",
+            (cld_dl_move_retry_c_add, state_retry_count_add, d_id),
+        )
+        self.conn.commit()
+        cursor.close()
+
+    def mark_as_failed(self, d_id):
+        cursor = self.conn.cursor()
+        cursor.execute("UPDATE data SET state = 'failed' WHERE id = ?", (d_id,))
+        self.conn.commit()
+        cursor.close()
+
+    def set_message_and_timeout_time(self, d_id, message, timeout_time):
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "UPDATE data SET message = ?, cld_dl_timeout_time = ? WHERE id = ?", (message, timeout_time, d_id)
+        )
+        self.conn.commit()
+        cursor.close()
+
+    def increment_dl_retry_count(self, d_id):
+        cursor = self.conn.cursor()
+        cursor.execute("UPDATE data SET dl_retry_count = dl_retry_count + 1 WHERE id = ?", (d_id,))
+        self.conn.commit()
+        cursor.close()
