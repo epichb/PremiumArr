@@ -74,8 +74,8 @@ def metrics():
         for operation, count in db.get_retry_counts().items():
             retry_counts.labels(operation=operation).set(count)
         db_size_in_KB.set(db.get_db_size_in_KB())
-        last_added_UTC.info({"timestamp": db.get_last_added_timestamp()})
-        last_done_UTC.info({"timestamp": db.get_last_done_timestamp()})
+        last_added_UTC.info({"timestamp": str(db.get_last_added_timestamp())})
+        last_done_UTC.info({"timestamp": str(db.get_last_done_timestamp())})
 
         data = generate_latest(registry)
         return data, 200, {"Content-Type": CONTENT_TYPE_LATEST}
