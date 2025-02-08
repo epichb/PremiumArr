@@ -5,7 +5,7 @@ In the future I will add support for the API of Sonarr, Radarr, Lidarr, ... so i
 
 The state is preserved in a SQLite DB - so even if the container is restarted / crashed / updated the state is preserved.
 
-
+Works around some limitations of the Premiumize Cloud Downloader, like the 'you already have this file uploaded' error.
 
 It's still under heavy development, so expect bugs and missing features.
 
