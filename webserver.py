@@ -79,7 +79,7 @@ def done_failed():
         logger.error(f"Error fetching done/failed entries: {e}")
         return jsonify({"error": "Error fetching done/failed entries"}), 500
 
-
+# TODO: Migrate this to prometheus WSGI middleware: https://prometheus.github.io/client_python/exporting/http/flask/
 @app.route("/metrics")
 def metrics():
     try:
