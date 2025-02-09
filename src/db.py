@@ -1,6 +1,8 @@
 import sqlite3
 import os
 from src.helper import get_logger
+from .data.job import Job, PremiumizeMeMetadata
+from .data.nzb import NZB
 
 logger = get_logger(__name__)
 time_fmt = "%Y-%m-%d %H:%M:%S"
@@ -46,6 +48,7 @@ class Database:
             full_path TEXT NOT NULL,
             done_at TIMESTAMP,
             message TEXT
+            nzb_file TEXT NOT NULL
         )
         """
         )
@@ -165,3 +168,60 @@ class Database:
         cursor.execute("UPDATE data SET dl_retry_count = dl_retry_count + 1 WHERE id = ?", (d_id,))
         self.conn.commit()
         cursor.close()
+
+    def store_job(self, job: Job):
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "INSERT INTO data (state, created_at category_path, dl_id, dl_retry_count, dl_folder_id, nzb_name, "
+            + "cld_dl_timeout_time, cld_dl_move_retry_c, state_retry_count, full_path, done_at, message, nzb_file)"
+            + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                job.state,
+                str(job.created_at),
+                job.category,
+                job.prem_metadata.download_id,
+                job.prem_metadata.download_retry_count,
+                job.prem_metadata.folder_id,
+                job.nzb.name,
+                str(job.prem_metadata.timeout_time),
+                job.prem_metadata.move_retry_count,
+                job.state_retry_count,
+                "",
+                str(job.done_at),
+                job.message,
+                job.nzb.file,
+            ),
+        )
+        self.conn.commit()
+        return cursor.lastrowid
+
+    def get_job(self, job_id) -> Job:
+        cursor = self.conn.cursor()
+        cursor.execute(
+            "SELECT * FROM data WHERE id = ?",
+            (job_id,),
+        )
+        row = cursor.fetchone()
+        cursor.close()
+
+        prem_metadata = PremiumizeMeMetadata(
+            row["dl_id"],
+            row["dl_retry_count"],
+            row["dl_folder_id"],
+            row["message"],
+            row["cld_dl_timeout_time"],
+            row["cld_dl_move_retry_c"],
+        )
+
+        nzb = NZB(row["nzb_name"], row["nzb_file"])
+
+        return Job(
+            row["id"],
+            row["state"],
+            row["created_at"],
+            row["done_at"],
+            row["category_path"],
+            row["state_retry_count"],
+            prem_metadata,
+            nzb,
+        )
