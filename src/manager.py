@@ -8,6 +8,8 @@ from src.premiumize_api import PremiumizeAPI
 from src.helper import UTCDateTime, RetryHandler, StateRetryError, get_logger
 from src.file_manager import FileManager
 from src.db import Database
+from .data.job import PremiumizeMetadata, Job
+from .data.nzb import NZB
 
 logger = get_logger(__name__)
 rh = RetryHandler(logger)
@@ -161,6 +163,30 @@ class Manager:
                 ret.append((item.link, f"{path}", item.name))
 
         return ret
+
+    def add_nzb(self, nzb: NZB, category: str):
+        logger.info(f"Adding NZB: {nzb.name}")
+
+        metadata = PremiumizeMetadata(
+            download_id=None,
+            download_retry_count=0,
+            folder_id=None,
+            timeout_time=UTCDateTime(offset=timedelta(minutes=15)).str(),
+            move_retry_count=0,
+        )
+
+        job = Job(
+            job_id=None,
+            state="found",
+            created_at=UTCDateTime().str(),
+            done_at=None,
+            category=category,
+            state_retry_count=0,
+            prem_metadata=metadata,
+            nzb=nzb,
+        )
+
+        return self.db.store_job(job)
 
     # IDEA: maybe I can to check_folder_for_incoming_nzbs and upload_nzbs_to_premiumize_downloader in a single thread
     # that way I would not need to use a mutex to prevent others from modifying the list
