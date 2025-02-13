@@ -45,7 +45,7 @@ class Database:
             state_retry_count INTEGER DEFAULT 0,
             full_path TEXT NOT NULL,
             done_at TIMESTAMP,
-            message TEXT
+            message TEXT DEFAULT ""
         )
         """
         )

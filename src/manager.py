@@ -250,7 +250,7 @@ class Manager:
             self.db.cursor.execute(q, (item.folder_id, d_id))
             self.db.conn.commit()
 
-            self.to_download.append(((d_id, item.name, item.folder_id), category_path[1]))
+            self.to_download.append(((d_id, item.name, item.folder_id), category_path))
             logger.info(f"Added item to download list: {item}")
 
             self.to_watch.pop(item.id)

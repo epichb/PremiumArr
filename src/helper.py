@@ -37,6 +37,7 @@ class UTCDateTime:
     def __init__(self, datetime=datetime.now(UTC), offset=timedelta(hours=0), from_str=None):
         if from_str:
             self.datetime = datetime.strptime(from_str, self._time_fmt)
+            self.datetime = self.datetime.replace(tzinfo=UTC)
         else:
             self.datetime = datetime
         self.datetime += offset
