@@ -259,7 +259,7 @@ class Manager:
         for item in filtered_failed:
             self.to_watch[item.id][0] += 1  # increase retry_count
             q = "SELECT id, full_path FROM data WHERE dl_id = ?"
-            d_id, full_path = self.db.cursor.execute(q, (item.id,)).fetchone()[0]
+            d_id, full_path = self.db.cursor.execute(q, (item.id,)).fetchone()
             self.db.increment_dl_retry_count(d_id)
 
             cur_retry_count = self.to_watch[item.id][0]
