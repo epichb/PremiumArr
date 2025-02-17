@@ -51,6 +51,10 @@ services:
 A web view is available to show the current state of the database. It displays all entries with a working state and some of the entries with 'done' or 'failed' state, with pagination support for more entries.
 It's available at PORT 5000.
 
+There is also a `/metrics` endpoint available for Prometheus to scrape some metrics.
+
+![Web View](./web_view.png)
+
 ## Environment Variables
 
 | Name                           | Description                                                                                                     | Default Value | Required |
