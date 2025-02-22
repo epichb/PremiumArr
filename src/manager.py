@@ -86,7 +86,7 @@ class Manager:
             logger.debug("Checking if there are files to move to done folder ...")
             self.move_to_done()
 
-            logger.debug(f"Sleeping for {self.chk_delay}s ...\n")
+            logger.info(f"Done with one complete check cycle! Sleeping for {self.chk_delay}s ...")
             sleep(self.chk_delay)
 
     @retry(stop=tries(5), wait=w_exp(2, max=30), retry_error_callback=rh.on_fail, before_sleep=rh.on_retry)
