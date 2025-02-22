@@ -181,6 +181,30 @@
         loadCurrentState();
         loadDoneFailed();
         loadLogs();
+
+        let logInterval;
+
+        function startLogAutoRefresh() {
+            if (!logInterval) {
+                logInterval = setInterval(() => {
+                    if (document.hasFocus()) {
+                        loadLogs();
+                    }
+                }, 5000);
+            }
+        }
+
+        function stopLogAutoRefresh() {
+            if (logInterval) {
+                clearInterval(logInterval);
+                logInterval = null;
+            }
+        }
+
+        window.addEventListener('focus', startLogAutoRefresh);
+        window.addEventListener('blur', stopLogAutoRefresh);
+
+        startLogAutoRefresh();
     </script>
 </body>
 </html>
