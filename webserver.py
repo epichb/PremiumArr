@@ -87,11 +87,8 @@ def get_logs():
         LOG_FILE_PATH = os.path.join(CONFIG_PATH, "log", "for_webviewer.log")
         with open(LOG_FILE_PATH, "r") as log_file:
             log_file.seek(0, os.SEEK_END)
-
-            if log_file.tell() < 50000:
-                log_file.seek(0, os.SEEK_SET)
-            else:
-                log_file.seek(-50000, os.SEEK_END)
+            log_size = log_file.tell()
+            log_file.seek(max(log_size - 50000, 0), os.SEEK_SET)
 
             logs = log_file.readlines()
             lines = [line.encode("ascii", "ignore").decode() for line in logs]  # remove all non ASCII characters
